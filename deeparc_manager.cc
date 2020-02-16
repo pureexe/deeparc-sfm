@@ -5,11 +5,6 @@
 #include "ceres/rotation.h"
 #include "deeparc_manager.h"
 
-
-typedef Eigen::Map<Eigen::VectorXd> VectorRef;
-typedef Eigen::Map<const Eigen::VectorXd> ConstVectorRef;
-
-
 bool DeepArcManager::read(const char* filename){
     FILE* fptr = fopen(filename, "r");
     if (fptr == NULL) {
@@ -113,12 +108,11 @@ void DeepArcManager::ply(const char* filename){
             << '\n' << "property uchar blue"
             << '\n' << "end_header" << std::endl;
      // Export extrinsic data (i.e. camera centers) as green points.
-    double angle_axis[3];
     double center[3];
     for (int i = 0; i < num_extrinsic_; ++i)  {
         const double* r = extrinsic_ + (i * extrinsic_block_size());
         //printf("%lf %lf %lf\n",r[3],r[4],r[5]);
-        CameraToAngleAxisAndCenter(r, angle_axis, center);
+        ExtrinsicToCameraPoint(r, center);
         of << center[0] << ' ' << center[1] << ' '
             << center[2] << " 0 255 0" << '\n';
     }
@@ -133,14 +127,14 @@ void DeepArcManager::ply(const char* filename){
     of.close();
 }
 
-void DeepArcManager::CameraToAngleAxisAndCenter(
-    const double* extrinsic, double* angle_axis, double* center
+void DeepArcManager::ExtrinsicToCameraPoint(
+    const double* extrinsic, double* cameraPoint
     ) const {
-        VectorRef angle_axis_ref(angle_axis, 3);
-        angle_axis_ref = ConstVectorRef(extrinsic+3, 3);
+        double angle_axis[3];
+        Eigen::Map<Eigen::VectorXd> angle_axis_ref(angle_axis, 3);
+        angle_axis_ref = Eigen::Map<const Eigen::VectorXd>(extrinsic+3, 3);
         // c = -R't
-        Eigen::VectorXd inverse_rotation = -angle_axis_ref;
-        ceres::AngleAxisRotatePoint(
-            inverse_rotation.data(), extrinsic, center);
-        VectorRef(center, 3) *= -1.0;
+        Eigen::VectorXd inv_rotation = -angle_axis_ref;
+        ceres::AngleAxisRotatePoint(inv_rotation.data(),extrinsic,cameraPoint);
+        Eigen::Map<Eigen::VectorXd>(cameraPoint, 3) *= -1.0;
     }

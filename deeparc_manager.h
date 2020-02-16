@@ -39,8 +39,8 @@ class DeepArcManager{
     template<typename F, typename T> void fscanHandler(
         F *fptr, const char *format, T *value
     );
-    void CameraToAngleAxisAndCenter(
-        const double* camera, double* angle_axis, double* center
+    void ExtrinsicToCameraPoint(
+        const double* extrinsic, double* cameraPoint
     ) const ;
 };
 #endif
