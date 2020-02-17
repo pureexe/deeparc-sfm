@@ -51,12 +51,12 @@ bool DeepArcManager::read(const char* filename){
         fscanHandler(fptr, "%lf", current_intrinsic);
         fscanHandler(fptr, "%lf", current_intrinsic + 1);
         fscanHandler(fptr, "%d", num_focal_index_ + i);
-        current_focal = current_intrinsic + 3;
+        current_focal = current_intrinsic + 2;
         for(j = 0; j < num_focal_index_[i] ; j++){
             fscanHandler(fptr, "%lf", current_focal + j);
         }
         fscanHandler(fptr, "%d", num_distrotion_index_ + i);
-        current_distrotion = current_intrinsic + 3 + num_focal_index_[i];
+        current_distrotion = current_intrinsic + 2 + num_focal_index_[i];
         for(j = 0; j < num_distrotion_index_[i] ; j++){
             fscanHandler(fptr, "%lf", current_distrotion + j);
         }

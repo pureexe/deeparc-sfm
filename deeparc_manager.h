@@ -8,7 +8,7 @@ class DeepArcManager{
     void ply(const char* filename);
 
     /* currently support only pin hole camera */
-    int intrinsic_block_size() const {return 4;}
+    int intrinsic_block_size() const {return 6;}
     int extrinsic_block_size() const {return 6;}
     /* point3d size 6 for X,Y,Z,R,G,B */
     int point3d_block_size() const {return 6;}

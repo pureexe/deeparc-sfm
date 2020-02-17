@@ -27,9 +27,9 @@ struct SnavelyReprojectionError {
                     
     // now code only support rotvec for rotation
     T rotvec[3];
-    rotvec[0] = extrinsic[4];
-    rotvec[1] = extrinsic[5];
-    rotvec[2] = extrinsic[6];
+    rotvec[0] = extrinsic[3];
+    rotvec[1] = extrinsic[4];
+    rotvec[2] = extrinsic[5];
 
     // rotate point by using angle-axis rotation.
     T p[3];
@@ -39,24 +39,25 @@ struct SnavelyReprojectionError {
     p[0] += extrinsic[0];
     p[1] += extrinsic[1];
     p[2] += extrinsic[2];
+
     // Compute the center of distortion. The sign change comes from
     // the camera model that Noah Snavely's Bundler assumes
 
     T xp = p[0] / p[2];
     T yp = p[1] / p[2];
     
-    //distrotion will support later 
-    T distortion = T(1.0);
-    /*
+    //If don't have any distrotion 
+    //T distortion = T(1.0);
+    
     // Apply second and fourth order radial distortion.
-    const T& l1 = instrinsic[5];
-    const T& l2 = instrinsic[6];
+    const T& l1 = instrinsic[3];
+    const T& l2 = instrinsic[4];
     T r2 = xp*xp + yp*yp;
     T distortion = 1.0 + r2  * (l1 + l2  * r2);
-    */
+    
 
-    //instrinsic[3] is focal_x and instrinsic[4] is focal_y. however,...
-    const T& focal = instrinsic[3];
+    //instrinsic[2] is focal_x and instrinsic[3] is focal_y. however,...
+    const T& focal = instrinsic[2];
 
     // Compute final projected point position.
     // instrinsic[0] is principle point px and instrinsic[1] is py.
@@ -72,7 +73,8 @@ struct SnavelyReprojectionError {
   // the client code.
   static ceres::CostFunction* Create(const double observed_x,
                                      const double observed_y) {
-    return (new ceres::AutoDiffCostFunction<SnavelyReprojectionError, 2, 3, 6, 3>(
+                    
+    return (new ceres::AutoDiffCostFunction<SnavelyReprojectionError, 2, 5, 6, 3>(
                 new SnavelyReprojectionError(observed_x, observed_y)));
   }
 
@@ -81,30 +83,46 @@ struct SnavelyReprojectionError {
 int main(int argc, char** argv) {
     google::InitGoogleLogging(argv[0]);
     DeepArcManager* deeparcManager = new DeepArcManager();
-    deeparcManager->read("../assets/temple.deeparc");
-    deeparcManager->ply("../assets/temple_input.ply");
+    deeparcManager->read("../assets/temple_random.deeparc");
+    deeparcManager->ply("../assets/temple_random_input.ply");
     ceres::Problem problem;
     for(int i = 0; i < deeparcManager->num_point2d(); i++){
+        double x = deeparcManager->point2d_x(i);
+        double y = deeparcManager->point2d_y(i);
         ceres::CostFunction* cost_fn = SnavelyReprojectionError::Create(
-            deeparcManager->point2d_x(i),
-            deeparcManager->point2d_y(i)
+            x,
+            y
         );
+        double* instrinsic = deeparcManager->instrinsic(i);
+        double* extrinsic = deeparcManager->extrinsic(i);
+        double* point3d = deeparcManager->point3d(i);
+        instrinsic[3] = 0.0;
+        instrinsic[4] = 0.0;
+        /*
+        double* residual = new double[2];
+        SnavelyReprojectionError projector = SnavelyReprojectionError(x, y);
+        projector(instrinsic,extrinsic,point3d,residual);
+        printf("Residual X=%f, Y=%f\n",residual[0],residual[1]);
+        exit(0);
+        */
         problem.AddResidualBlock(cost_fn,
-            NULL /* squared loss */,
-            deeparcManager->instrinsic(i),
-            deeparcManager->extrinsic(i),
-            deeparcManager->point3d(i)
+            new ceres::CauchyLoss(0.5),
+            instrinsic,
+            extrinsic,
+            point3d
         );
+        //problem.SetParameterBlockConstant(instrinsic);
+        //problem.SetParameterBlockConstant(extrinsic);
     }
 
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
     options.minimizer_progress_to_stdout = true;
-    options.max_num_iterations = 10000; // 1000 iteration 
+    options.max_num_iterations = 1000; // 1000 iteration 
     options.num_threads = 22; //use 20 thread
-    options.max_solver_time_in_seconds = 3600 * 3; // 1 hour
+    options.max_solver_time_in_seconds = 3600; // 1 hour
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
     std::cout << summary.FullReport() << "\n";
-    deeparcManager->ply("../assets/temple_output.ply");
+    deeparcManager->ply("../assets/temple_random_with_distrotion_output.ply");
 }
