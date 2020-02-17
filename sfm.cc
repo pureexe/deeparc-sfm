@@ -84,6 +84,7 @@ int main(int argc, char** argv) {
     google::InitGoogleLogging(argv[0]);
     DeepArcManager* deeparcManager = new DeepArcManager();
     deeparcManager->read("../assets/temple_random.deeparc");
+    /*
     deeparcManager->ply("../assets/temple_random_input.ply");
     ceres::Problem problem;
     for(int i = 0; i < deeparcManager->num_point2d(); i++){
@@ -98,13 +99,13 @@ int main(int argc, char** argv) {
         double* point3d = deeparcManager->point3d(i);
         instrinsic[3] = 0.0;
         instrinsic[4] = 0.0;
-        /*
-        double* residual = new double[2];
-        SnavelyReprojectionError projector = SnavelyReprojectionError(x, y);
-        projector(instrinsic,extrinsic,point3d,residual);
-        printf("Residual X=%f, Y=%f\n",residual[0],residual[1]);
-        exit(0);
-        */
+        
+        // double* residual = new double[2];
+        // SnavelyReprojectionError projector = SnavelyReprojectionError(x, y);
+        // projector(instrinsic,extrinsic,point3d,residual);
+        // printf("Residual X=%f, Y=%f\n",residual[0],residual[1]);
+        // exit(0);
+        
         problem.AddResidualBlock(cost_fn,
             new ceres::CauchyLoss(0.5),
             instrinsic,
@@ -125,4 +126,6 @@ int main(int argc, char** argv) {
     ceres::Solve(options, &problem, &summary);
     std::cout << summary.FullReport() << "\n";
     deeparcManager->ply("../assets/temple_random_with_distrotion_output.ply");
+    */
+    deeparcManager->write("../assets/output.deeparc");
 }

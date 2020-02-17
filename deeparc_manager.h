@@ -4,7 +4,7 @@
 class DeepArcManager{
     public:
     bool read(const char* filename);
-    void write(const char* filename);
+    bool write(const char* filename);
     void ply(const char* filename);
 
     /* currently support only pin hole camera */

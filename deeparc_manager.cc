@@ -83,8 +83,95 @@ bool DeepArcManager::read(const char* filename){
             fscanHandler(fptr, "%lf", current_point3d + j);
         }
     }
-    fclose(fptr);    
+    fclose(fptr);
+    return true;    
 }
+
+bool DeepArcManager::write(const char* filename){
+    FILE* fptr = fopen(filename, "w");
+    if (fptr == NULL) {
+      return false;
+    };
+    //iteration parameter
+    int i,block_index,j;
+    int intrinsic_block = intrinsic_block_size();
+    int extrinsic_block = extrinsic_block_size();
+    int point3d_block = point3d_block_size();
+
+    // write api version
+    double api_version = 0.01;   
+    fprintf(fptr,"%lf\n",api_version);   
+    //write number of output
+    fprintf(fptr,"%d %d %d %d\n",
+        num_point2d_,
+        num_intrinsic_,
+        num_extrinsic_,
+        num_point3d_
+    );
+    //write point2d info
+    for(i = 0; i < num_point2d_; i++){
+        fprintf(fptr,"%d %d %d %lf %lf\n",
+            intrinsic_index_[i],
+            extrinsic_index_[i],
+            point3d_index_[i],
+            point2d_[i*2],
+            point2d_[i*2+1]
+        );
+    }
+    //write instrinsic info
+    for(i = 0; i< num_intrinsic_; i++){
+        //write px and py
+        block_index = i * intrinsic_block;
+        fprintf(fptr,"%lf %lf ",
+            intrinsic_[block_index],
+            intrinsic_[block_index + 1]
+        );
+        block_index += 2;
+        //write focal length
+        fprintf(fptr, "%d",num_focal_index_[i]);
+        for(j = 0; j < num_focal_index_[i]; j++){
+            fprintf(fptr," %lf",intrinsic_[block_index+j]);
+        }
+        block_index += num_focal_index_[i];
+        //write distortion
+        fprintf(fptr, " %d",num_distrotion_index_[i]);
+        for(j = 0; j < num_distrotion_index_[i]; j++){
+            fprintf(fptr," %lf",intrinsic_[block_index+j]);
+        }
+        fprintf(fptr,"\n");
+    }
+    //write extrinsic info
+    for(i = 0; i < num_extrinsic_; i++){
+        block_index = i * extrinsic_block;
+        //write translation
+        fprintf(fptr,"%lf %lf %lf ",
+            extrinsic_[block_index],
+            extrinsic_[block_index+1],
+            extrinsic_[block_index+2]
+        );
+        block_index += 3;
+        //write rotation
+        fprintf(fptr,"%d",num_rotation_index_[i]);
+        for(j = 0; j < num_rotation_index_[i]; j++){
+            fprintf(fptr," %lf",extrinsic_[block_index+j]);
+        }
+        fprintf(fptr,"\n");
+    }
+    //write point3d info
+    for(i = 0; i < num_point3d_; i++){
+        block_index = i * point3d_block;
+        fprintf(fptr,"%lf %lf %lf %d %d %d\n",
+            point3d_[block_index],
+            point3d_[block_index + 1],
+            point3d_[block_index + 2],
+            int(point3d_[block_index + 3]),
+            int(point3d_[block_index + 4]),
+            int(point3d_[block_index + 5])
+        );
+    }
+    return true;
+}
+
 
 template<typename F, typename T> void DeepArcManager::fscanHandler(
     F *fptr, const char *format, T *value
