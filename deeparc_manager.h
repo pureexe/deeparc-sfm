@@ -6,8 +6,13 @@ class DeepArcManager{
     bool read(const char* filename);
     bool write(const char* filename);
     void ply(const char* filename);
-
-    /* currently support only pin hole camera */
+    /*
+    * Currently support COLMAP camera
+    * - PINHOLE
+    * - RADIAL
+    * - SIMPLE_PINHOLE
+    * - SIMPLE_RADIAL
+    */
     int intrinsic_block_size() const {return 6;}
     int extrinsic_block_size() const {return 6;}
     /* point3d size 6 for X,Y,Z,R,G,B */
@@ -29,6 +34,13 @@ class DeepArcManager{
 
     double point2d_x(int id){ return point2d_[id*2]; }
     double point2d_y(int id){ return point2d_[id*2 + 1]; }
+    
+    double num_focal(int id){ 
+        return num_focal_index_[intrinsic_index_[id]];
+    }
+    double num_distrotion(int id){
+        return num_distrotion_index_[intrinsic_index_[id]];
+    }
 
     private:
     int num_point2d_, num_intrinsic_, num_extrinsic_, num_point3d_;

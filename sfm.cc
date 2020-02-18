@@ -10,10 +10,15 @@ struct SnavelyReprojectionError {
 
   double observed_x;
   double observed_y;
-  double num_distrotion;
-  double num_focal;
+  int num_distrotion;
+  int num_focal;
 
-  SnavelyReprojectionError(double x, double y, double n_focal = 1, double n_distrotion = 0){
+  SnavelyReprojectionError(
+      double x,
+      double y,
+      int n_focal = 1,
+      int n_distrotion = 0
+    ){
       this->observed_x = x;
       this->observed_y = y;
       this->num_focal = n_focal;
@@ -45,72 +50,83 @@ struct SnavelyReprojectionError {
 
     T xp = p[0] / p[2];
     T yp = p[1] / p[2];
-    
-    //If don't have any distrotion 
-    //T distortion = T(1.0);
-    
-    // Apply second and fourth order radial distortion.
-    const T& l1 = instrinsic[3];
-    const T& l2 = instrinsic[4];
-    T r2 = xp*xp + yp*yp;
-    T distortion = 1.0 + r2  * (l1 + l2  * r2);
-    
+        
 
-    //instrinsic[2] is focal_x and instrinsic[3] is focal_y. however,...
-    const T& focal = instrinsic[2];
+    //handle forcal length
+    T focal_x, focal_y;
+    focal_x = instrinsic[2];
+    focal_y = instrinsic[2];
+    if(num_focal == 2){
+        focal_y = instrinsic[3];
+    }
+
+    // Apply second and fourth order radial distortion.
+    int d_id = 2 + num_focal;
+    T distortion = T(1.0);
+    T r2 = xp*xp + yp*yp;
+    //fourth order raidal distrotion
+    if(num_distrotion == 2){
+        distortion = 1.0 + r2 * (instrinsic[d_id] + instrinsic[d_id + 1] * r2);
+    }
+    //second order radial distrotion
+    if(num_distrotion == 1){
+        distortion = 1.0 + r2 * instrinsic[d_id];
+    }
 
     // Compute final projected point position.
     // instrinsic[0] is principle point px and instrinsic[1] is py.
-    T predicted_x = focal * distortion * xp + instrinsic[0];
-    T predicted_y = focal * distortion * yp + instrinsic[1];
+    T predicted_x = focal_x * distortion * xp + instrinsic[0];
+    T predicted_y = focal_y * distortion * yp + instrinsic[1];
 
     // The error is the difference between the predicted and observed position.
     residuals[0] = predicted_x - observed_x;
     residuals[1] = predicted_y - observed_y;
     return true;
   }
-  // Factory to hide the construction of the CostFunction object from
-  // the client code.
-  static ceres::CostFunction* Create(const double observed_x,
-                                     const double observed_y) {
-                    
-    return (new ceres::AutoDiffCostFunction<SnavelyReprojectionError, 2, 5, 6, 3>(
-                new SnavelyReprojectionError(observed_x, observed_y)));
+
+  // Factory to hide the construction of the CostFunction object 
+  static ceres::CostFunction* Create(
+      double x,
+      double y,
+      int focal = 1,
+      int distrotion = 0) {    
+    ceres::CostFunction *cost_fn;
+    SnavelyReprojectionError *projector = new SnavelyReprojectionError(x, y, focal, distrotion);
+    // this code look very stupid but compiler doesn't allow me to edit constant.
+    // should find someway to fix it soon
+    if(focal+distrotion == 1){
+        cost_fn = new ceres::AutoDiffCostFunction<SnavelyReprojectionError, 2, 3, 6, 3>(projector);
+    }else if(focal+distrotion == 2){
+        cost_fn = new ceres::AutoDiffCostFunction<SnavelyReprojectionError, 2, 4, 6, 3>(projector);
+    }else if(focal+distrotion == 3){
+        cost_fn = new ceres::AutoDiffCostFunction<SnavelyReprojectionError, 2, 5, 6, 3>(projector);
+    }else if(focal+distrotion == 4){
+        cost_fn = new ceres::AutoDiffCostFunction<SnavelyReprojectionError, 2, 6, 6, 3>(projector);
+    }
+    return cost_fn;
   }
 
 };
 
 int main(int argc, char** argv) {
     google::InitGoogleLogging(argv[0]);
+    // google::SetLogDestination(google::GLOG_INFO,"../log/" );
     DeepArcManager* deeparcManager = new DeepArcManager();
-    deeparcManager->read("../assets/temple_random.deeparc");
-    /*
-    deeparcManager->ply("../assets/temple_random_input.ply");
+    deeparcManager->read("../assets/temple.deeparc");
+    //deeparcManager->ply("../assets/temple_random_input.ply");
     ceres::Problem problem;
     for(int i = 0; i < deeparcManager->num_point2d(); i++){
-        double x = deeparcManager->point2d_x(i);
-        double y = deeparcManager->point2d_y(i);
         ceres::CostFunction* cost_fn = SnavelyReprojectionError::Create(
-            x,
-            y
+            deeparcManager->point2d_x(i),
+            deeparcManager->point2d_y(i),
+            deeparcManager->num_focal(i),
+            deeparcManager->num_distrotion(i)
         );
-        double* instrinsic = deeparcManager->instrinsic(i);
-        double* extrinsic = deeparcManager->extrinsic(i);
-        double* point3d = deeparcManager->point3d(i);
-        instrinsic[3] = 0.0;
-        instrinsic[4] = 0.0;
-        
-        // double* residual = new double[2];
-        // SnavelyReprojectionError projector = SnavelyReprojectionError(x, y);
-        // projector(instrinsic,extrinsic,point3d,residual);
-        // printf("Residual X=%f, Y=%f\n",residual[0],residual[1]);
-        // exit(0);
-        
         problem.AddResidualBlock(cost_fn,
             new ceres::CauchyLoss(0.5),
-            instrinsic,
-            extrinsic,
-            point3d
+            deeparcManager->instrinsic(i),
+            deeparcManager->extrinsic(i),
+            deeparcManager->point3d(i)
         );
         //problem.SetParameterBlockConstant(instrinsic);
         //problem.SetParameterBlockConstant(extrinsic);
@@ -125,7 +141,10 @@ int main(int argc, char** argv) {
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
     std::cout << summary.FullReport() << "\n";
-    deeparcManager->ply("../assets/temple_random_with_distrotion_output.ply");
-    */
+    deeparcManager->ply("../assets/test.ply");
     deeparcManager->write("../assets/output.deeparc");
 }
+
+//ถ้า off เกิน n พิกเซล โยนทิ้ง (เฉพาะ visualize)
+// พอ filter ออกแล้ว ให้ทำ relative ของ extrinsic
+//ใช้ point ที่ดี 100-200
