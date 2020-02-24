@@ -6,6 +6,8 @@ class DeepArcManager{
     bool read(const char* filename);
     bool write(const char* filename);
     void ply(const char* filename);
+    bool* point3d_mask(double error_bound);
+    void point3d_remove(bool* point3d_mask);
     /*
     * Currently support COLMAP camera
     * - PINHOLE
@@ -38,6 +40,7 @@ class DeepArcManager{
     double num_focal(int id){ 
         return num_focal_index_[intrinsic_index_[id]];
     }
+    
     double num_distrotion(int id){
         return num_distrotion_index_[intrinsic_index_[id]];
     }
@@ -51,7 +54,7 @@ class DeepArcManager{
     template<typename F, typename T> void fscanHandler(
         F *fptr, const char *format, T *value
     );
-    void ExtrinsicToCameraPoint(
+    void extrinsicToCameraPoint(
         const double* extrinsic, double* cameraPoint
     ) const ;
 };
