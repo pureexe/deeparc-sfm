@@ -24,7 +24,10 @@ bool DeepArcManager::read(const char* filename){
     fscanHandler(fptr, "%d", &num_point2d_);
     fscanHandler(fptr, "%d", &num_intrinsic_);
     fscanHandler(fptr, "%d", &num_extrinsic_);
+    // fscanHandler(fptr, "%d", &num_extrinsic_col_);
     fscanHandler(fptr, "%d", &num_point3d_);
+    // merge row and col of extrinsic
+    //num_extrinsic_ = num_extrinsic_row_ + num_extrinsic_col_;
     //prepare memory for store data
     intrinsic_index_ = new int[num_point2d_];
     extrinsic_index_ = new int[num_point2d_];

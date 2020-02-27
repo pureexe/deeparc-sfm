@@ -1,10 +1,11 @@
 #include <cmath>
 #include <cstdio>
 #include <iostream>
+#include <vector>
 #include "ceres/ceres.h"
 #include "ceres/rotation.h"
 #include "deeparc_manager.h"
-#include "snavely_reprojection_error.h"
+#include "dynamic_reprojection_error.h"
 
 int main(int argc, char** argv) {
     google::InitGoogleLogging(argv[0]);
@@ -16,7 +17,7 @@ int main(int argc, char** argv) {
     ceres::Problem problem;
     double *instrinsic,*extrinsic, *point3d;
     for(int i = 0; i < deeparcManager->num_point2d(); i++){
-        ceres::CostFunction* cost_fn = SnavelyReprojectionError::Create(
+        ceres::CostFunction* cost_fn = DynamicReprojectionError::Create(
             deeparcManager->point2d_x(i),
             deeparcManager->point2d_y(i),
             deeparcManager->num_focal(i),
@@ -25,12 +26,11 @@ int main(int argc, char** argv) {
         instrinsic = deeparcManager->instrinsic(i);
         extrinsic = deeparcManager->extrinsic(i);
         point3d = deeparcManager->point3d(i);
-        problem.AddResidualBlock(cost_fn,
-            new ceres::CauchyLoss(0.5),
-            instrinsic,
-            extrinsic,
-            point3d
-        );
+        std::vector<double*> params;
+        params.push_back(instrinsic);
+        params.push_back(extrinsic);
+        params.push_back(point3d);
+        problem.AddResidualBlock(cost_fn,new ceres::CauchyLoss(0.5),params);
         problem.SetParameterBlockConstant(instrinsic);
         problem.SetParameterBlockConstant(extrinsic);
     }
@@ -50,7 +50,3 @@ int main(int argc, char** argv) {
     deeparcManager->ply("../assets/temple_fixcam_clear.ply");
     deeparcManager->write("../assets/temple_fixcam_clear.deeparc");
 }
-
-//ถ้า off เกิน n พิกเซล โยนทิ้ง (เฉพาะ visualize)
-// พอ filter ออกแล้ว ให้ทำ relative ของ extrinsic
-//ใช้ point ที่ดี 100-200

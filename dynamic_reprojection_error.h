@@ -1,39 +1,47 @@
-#ifndef VLL_SNAVELY_REPROJECTION_ERROR_H_
-#define VLL_SNAVELY_REPROJECTION_ERROR_H_
+#ifndef VLL_DYNAMIC_REPROJECTION_ERROR_H_
+#define VLL_DYNAMIC_REPROJECTION_ERROR_H_
 
 #include "ceres/rotation.h"
 
-struct SnavelyReprojectionError {
-  double observed_x;
-  double observed_y;
-  int num_distrotion;
-  int num_focal;
+struct DynamicReprojectionError {
+  double observed_x, observed_y;
+  bool is_share_extrinsic;
+  int num_distrotion, num_focal, num_rotation_row, num_rotation_col;
 
-  SnavelyReprojectionError(
+  DynamicReprojectionError(
       double x,
       double y,
       int n_focal = 1,
-      int n_distrotion = 0
+      int n_distrotion = 0,
+      bool share_extrinsic = false,
+      int num_rotation_row = 3,
+      int num_rotation_col = 3
     ){
       this->observed_x = x;
       this->observed_y = y;
       this->num_focal = n_focal;
       this->num_distrotion = n_distrotion;
+      this->is_share_extrinsic = is_share_extrinsic;
+      this->num_rotation_row = num_rotation_row;
+      this->num_rotation_col = num_rotation_col;
   }
+
   template <typename T>
-  bool operator()(const T* const instrinsic,
-                  const T* const extrinsic,
-                  const T* const point,
+  bool operator()(T const* const* params,
                   T* residuals) const {
-                    
+    const T* instrinsic, *extrinsic, *point;
+    instrinsic = params[0];
+    extrinsic = params[1];
+    point = params[2];
+
     // now code only support rotvec for rotation
     T rotvec[3];
     rotvec[0] = extrinsic[3];
     rotvec[1] = extrinsic[4];
     rotvec[2] = extrinsic[5];
 
-    // rotate point by using angle-axis rotation.
     T p[3];
+    // rotate point by using angle-axis rotation.
     ceres::AngleAxisRotatePoint(rotvec, point, p);
     
     // extrinsic[0,1,2] are the translation.
@@ -85,19 +93,15 @@ struct SnavelyReprojectionError {
       double y,
       int focal = 1,
       int distrotion = 0) {    
-    ceres::CostFunction *cost_fn;
-    SnavelyReprojectionError *projector = new SnavelyReprojectionError(x, y, focal, distrotion);
+    ceres::DynamicAutoDiffCostFunction<DynamicReprojectionError> *cost_fn;
+    DynamicReprojectionError *projector = new DynamicReprojectionError(x, y, focal, distrotion);
     // this code look very stupid but compiler doesn't allow me to edit constant.
     // should find someway to fix it soon
-    if(focal+distrotion == 1){
-        cost_fn = new ceres::AutoDiffCostFunction<SnavelyReprojectionError, 2, 3, 6, 3>(projector);
-    }else if(focal+distrotion == 2){
-        cost_fn = new ceres::AutoDiffCostFunction<SnavelyReprojectionError, 2, 4, 6, 3>(projector);
-    }else if(focal+distrotion == 3){
-        cost_fn = new ceres::AutoDiffCostFunction<SnavelyReprojectionError, 2, 5, 6, 3>(projector);
-    }else if(focal+distrotion == 4){
-        cost_fn = new ceres::AutoDiffCostFunction<SnavelyReprojectionError, 2, 6, 6, 3>(projector);
-    }
+    cost_fn = new ceres::DynamicAutoDiffCostFunction<DynamicReprojectionError>(projector); 
+    cost_fn->AddParameterBlock(3);
+    cost_fn->AddParameterBlock(6);
+    cost_fn->AddParameterBlock(3);
+    cost_fn->SetNumResiduals(2);
     return cost_fn;
   }
 

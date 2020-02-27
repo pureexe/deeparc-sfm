@@ -44,9 +44,11 @@ class DeepArcManager{
     double num_distrotion(int id){
         return num_distrotion_index_[intrinsic_index_[id]];
     }
+    bool is_share_extrinsic(){return num_extrinsic_col_ == 0;}
 
     private:
     int num_point2d_, num_intrinsic_, num_extrinsic_, num_point3d_;
+    int num_extrinsic_row_, num_extrinsic_col_;
     int *intrinsic_index_, *extrinsic_index_, *point3d_index_;
     int *num_focal_index_, *num_distrotion_index_, *num_rotation_index_;
     double *point2d_, *intrinsic_, *extrinsic_, *point3d_;
