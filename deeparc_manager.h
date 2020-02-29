@@ -29,6 +29,18 @@ class DeepArcManager{
     double* extrinsic(int id) {
         return extrinsic_ + (extrinsic_index_[id] * extrinsic_block_size());
     }
+    int extrinsic_row_id(int id){return extrinsic_index_[id] / num_extrinsic_col_;}
+    int extrinsic_col_id(int id){return extrinsic_index_[id] % num_extrinsic_col_;}
+    int extrinsic_id(int id){return extrinsic_index_[id];}
+    double* extrinsic_row(int id){
+        return extrinsic_ + (extrinsic_row_id(id) * extrinsic_block_size());
+    }
+    double* extrinsic_col(int id){
+        return extrinsic_ + ((num_extrinsic_row_ + extrinsic_col_id(id) -1) * extrinsic_block_size());
+    }
+    int is_edge(int id){
+        return extrinsic_row_id(id) == 0 || extrinsic_col_id(id) ==0;
+    }
 
     double* point3d(int id) {
         return point3d_ + (point3d_index_[id] * point3d_block_size());
@@ -44,7 +56,7 @@ class DeepArcManager{
     double num_distrotion(int id){
         return num_distrotion_index_[intrinsic_index_[id]];
     }
-    bool is_share_extrinsic(){return num_extrinsic_col_ == 0;}
+    bool is_share_extrinsic(){return num_extrinsic_col_ != 0;}
 
     private:
     int num_point2d_, num_intrinsic_, num_extrinsic_, num_point3d_;
@@ -59,5 +71,10 @@ class DeepArcManager{
     void extrinsicToCameraPoint(
         const double* extrinsic, double* cameraPoint
     ) const ;
+    void composeExtrinsicToCameraPoint(
+        const double* extrinsic_row, 
+        const double* extrinsic_col,
+        double* cameraPoint
+    ) const;
 };
 #endif

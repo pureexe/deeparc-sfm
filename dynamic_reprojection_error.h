@@ -21,33 +21,41 @@ struct DynamicReprojectionError {
       this->observed_y = y;
       this->num_focal = n_focal;
       this->num_distrotion = n_distrotion;
-      this->is_share_extrinsic = is_share_extrinsic;
+      this->is_share_extrinsic = share_extrinsic;
       this->num_rotation_row = num_rotation_row;
       this->num_rotation_col = num_rotation_col;
   }
 
   template <typename T>
+  void rotatePoint(const T* extrinsic,const  T* point, T* p) const {
+      // now code only support rotvec for rotation
+      T rotvec[3];
+      rotvec[0] = extrinsic[3];
+      rotvec[1] = extrinsic[4];
+      rotvec[2] = extrinsic[5];
+      // rotate point by using angle-axis rotation.
+      ceres::AngleAxisRotatePoint(rotvec, point, p);
+      // extrinsic[0,1,2] are the translation.
+      p[0] += extrinsic[0];
+      p[1] += extrinsic[1];
+      p[2] += extrinsic[2];
+
+  }
+
+  template <typename T>
   bool operator()(T const* const* params,
                   T* residuals) const {
-    const T* instrinsic, *extrinsic, *point;
-    instrinsic = params[0];
-    extrinsic = params[1];
-    point = params[2];
-
-    // now code only support rotvec for rotation
-    T rotvec[3];
-    rotvec[0] = extrinsic[3];
-    rotvec[1] = extrinsic[4];
-    rotvec[2] = extrinsic[5];
-
-    T p[3];
-    // rotate point by using angle-axis rotation.
-    ceres::AngleAxisRotatePoint(rotvec, point, p);
-    
-    // extrinsic[0,1,2] are the translation.
-    p[0] += extrinsic[0];
-    p[1] += extrinsic[1];
-    p[2] += extrinsic[2];
+    const T* instrinsic = params[0];
+    T p[3],p2[3];
+    if(is_share_extrinsic){
+      //params[1],params[2] <- Extrinsic Row / Extrinsic Col
+      //params[3] point3d
+      rotatePoint(params[1],params[3],p2);
+      rotatePoint(params[2],p2,p);
+    }else{
+      //same with above, but only extrinsic col
+      rotatePoint(params[1],params[2],p);
+    }
 
     // Compute the center of distortion. The sign change comes from
     // the camera model that Noah Snavely's Bundler assumes
@@ -92,14 +100,16 @@ struct DynamicReprojectionError {
       double x,
       double y,
       int focal = 1,
-      int distrotion = 0) {    
+      int distrotion = 0,
+      bool share_extrinsic = false) {    
     ceres::DynamicAutoDiffCostFunction<DynamicReprojectionError> *cost_fn;
-    DynamicReprojectionError *projector = new DynamicReprojectionError(x, y, focal, distrotion);
-    // this code look very stupid but compiler doesn't allow me to edit constant.
-    // should find someway to fix it soon
+    DynamicReprojectionError *projector = new DynamicReprojectionError(x, y, focal, distrotion, share_extrinsic);
     cost_fn = new ceres::DynamicAutoDiffCostFunction<DynamicReprojectionError>(projector); 
     cost_fn->AddParameterBlock(3);
     cost_fn->AddParameterBlock(6);
+    if(share_extrinsic){
+      cost_fn->AddParameterBlock(6);
+    }
     cost_fn->AddParameterBlock(3);
     cost_fn->SetNumResiduals(2);
     return cost_fn;

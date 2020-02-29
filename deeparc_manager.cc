@@ -7,7 +7,7 @@
 #include "ceres/ceres.h"
 #include "ceres/rotation.h"
 #include "deeparc_manager.h"
-#include "snavely_reprojection_error.h"
+#include "dynamic_reprojection_error.h"
 
 
 bool DeepArcManager::read(const char* filename){
@@ -23,11 +23,15 @@ bool DeepArcManager::read(const char* filename){
     fscanHandler(fptr, "%f", &version_);
     fscanHandler(fptr, "%d", &num_point2d_);
     fscanHandler(fptr, "%d", &num_intrinsic_);
-    fscanHandler(fptr, "%d", &num_extrinsic_);
-    // fscanHandler(fptr, "%d", &num_extrinsic_col_);
+    fscanHandler(fptr, "%d", &num_extrinsic_row_);
+    fscanHandler(fptr, "%d", &num_extrinsic_col_);
     fscanHandler(fptr, "%d", &num_point3d_);
     // merge row and col of extrinsic
-    //num_extrinsic_ = num_extrinsic_row_ + num_extrinsic_col_;
+    if(num_extrinsic_col_ == 0){
+        num_extrinsic_ = num_extrinsic_row_;
+    }else{
+        num_extrinsic_ = num_extrinsic_row_ + num_extrinsic_col_ - 1;
+    }
     //prepare memory for store data
     intrinsic_index_ = new int[num_point2d_];
     extrinsic_index_ = new int[num_point2d_];
@@ -185,9 +189,13 @@ template<typename F, typename T> void DeepArcManager::fscanHandler(
 
 void DeepArcManager::ply(const char* filename){
     std::ofstream of(filename);
+    int camera_point = num_extrinsic_;
+    if(is_share_extrinsic()){
+        camera_point = num_extrinsic_row_ * num_extrinsic_col_;
+    }
     of << "ply"
             << '\n' << "format ascii 1.0"
-            << '\n' << "element vertex " << num_point3d_ + num_extrinsic_
+            << '\n' << "element vertex " << num_point3d_ + camera_point
             << '\n' << "property float x"
             << '\n' << "property float y"
             << '\n' << "property float z"
@@ -196,14 +204,33 @@ void DeepArcManager::ply(const char* filename){
             << '\n' << "property uchar blue"
             << '\n' << "end_header" << std::endl;
      // Export extrinsic data (i.e. camera centers) as green points.
-    double center[3];
+    double center[3],output[3];
+    int r,c;
+    if(is_share_extrinsic()){
+        //write cam_i,j which compose from extrinsic on base and arc
+        for (int i = 0; i < camera_point; ++i)  {
+            c = i % num_extrinsic_col_;
+            r = i / num_extrinsic_col_;
+            if(r == 0 || c == 0){
+                continue;
+            }
+            const double* extrinsics_row = extrinsic_ + (r * extrinsic_block_size());
+            const double* extrinsics_col = extrinsic_ + ((num_extrinsic_row_ + c -1) * extrinsic_block_size());
+            composeExtrinsicToCameraPoint(extrinsics_row, extrinsics_col, center);
+            of << center[0] << ' ' << center[1] << ' '
+            << center[2] << " 255 0 255" << '\n';
+        }
+    }
+   
+   // show base and arc extrinsic
     for (int i = 0; i < num_extrinsic_; ++i)  {
         const double* r = extrinsic_ + (i * extrinsic_block_size());
-        //printf("%lf %lf %lf\n",r[3],r[4],r[5]);
         extrinsicToCameraPoint(r, center);
         of << center[0] << ' ' << center[1] << ' '
             << center[2] << " 0 255 0" << '\n';
     }
+    
+   
     // Export the structure (i.e. 3D Points) as white points.
     for (int i = 0; i < num_point3d_; ++i) {
         const double* point = point3d_ + i * point3d_block_size();
@@ -212,18 +239,76 @@ void DeepArcManager::ply(const char* filename){
         }
         of << '\n';
     }
+     //temporary comment this section, still can't fix bug after multiply back with original value
+    /*
+    // try to display camera on base and arch with multiply original extrinsic of cam_0,0 back
+    // get extrinsic of cam_0,0
+    double *ref_extrinsic = extrinsic_ + (num_extrinsic_ -1 * extrinsic_block_size());
+    double* ref_rot = new double[9];
+    // convert cam_0,0 rotation (which is index 3,4,5) to rotation matrix from
+    ceres::AngleAxisToRotationMatrix(ref_extrinsic+3,ref_rot);
+    // convert from double* to Matrix3d for multiply
+    Eigen::Map<Eigen::Matrix3d> ref_angle(ref_rot);
+    for (int i = 0; i < num_extrinsic_ -1; ++i)  {
+        // get cam_i,0 and cam_0,j 
+        const double* r = extrinsic_ + (i * extrinsic_block_size());
+        //clone extrinsic into new variable
+        double* new_extrinsic = new double[extrinsic_block_size()];
+        double current_angle[3],current_rot[9];
+        for(int j = 0; j < extrinsic_block_size(); j++){
+            new_extrinsic[j] = r[j];
+        }
+        current_angle[0] = new_extrinsic[3];
+        current_angle[1] = new_extrinsic[4];
+        current_angle[2] = new_extrinsic[5];
+        ceres::AngleAxisToRotationMatrix(current_angle,current_rot);
+        Eigen::Map<Eigen::Matrix3d> c_angle(current_rot);
+        //multiply back with original rotation of cam_0,0
+        Eigen::Matrix3d result =  ref_angle * c_angle;
+        ceres::RotationMatrixToAngleAxis(result.data(),current_angle);
+        new_extrinsic[3] = current_angle[0];
+        new_extrinsic[4] = current_angle[1];
+        new_extrinsic[5] = current_angle[2];
+        extrinsicToCameraPoint(new_extrinsic, center);
+        of << center[0] << ' ' << center[1] << ' '
+            << center[2] << " 0 255 0" << '\n';
+    }
+    */
     of.close();
 }
 
+// draw camera position
 void DeepArcManager::extrinsicToCameraPoint(
     const double* extrinsic, double* cameraPoint) const {
         double angle_axis[3];
-        Eigen::Map<Eigen::VectorXd> angle_axis_ref(angle_axis, 3);
-        angle_axis_ref = Eigen::Map<const Eigen::VectorXd>(extrinsic+3, 3);
-        // c = -R't
-        Eigen::VectorXd inv_rotation = -angle_axis_ref;
-        ceres::AngleAxisRotatePoint(inv_rotation.data(),extrinsic,cameraPoint);
-        Eigen::Map<Eigen::VectorXd>(cameraPoint, 3) *= -1.0;
+        int i;
+        for(i = 0; i< 3; i++){
+            angle_axis[i] = -extrinsic[i+3];
+        }
+        ceres::AngleAxisRotatePoint(angle_axis,extrinsic,cameraPoint);
+        for(i = 0;i < 3; i++){
+            cameraPoint[i] = -cameraPoint[i];
+        }
+}
+
+
+//draw camera position that combine from 2 extrinsic
+void DeepArcManager::composeExtrinsicToCameraPoint(
+    const double* extrinsic_row, 
+    const double* extrinsic_col,
+    double* cameraPoint
+) const {
+    double angle_axis[3], camera_row[3];
+    int i;
+    for(i = 0; i< 3; i++){
+        angle_axis[i] = -extrinsic_row[i+3];
+    }
+    ceres::AngleAxisRotatePoint(angle_axis,extrinsic_row,camera_row);
+    for(i = 0;i < 3; i++){
+        camera_row[i] = -camera_row[i];
+        angle_axis[i] = -extrinsic_col[i+3];
+    }
+    ceres::AngleAxisRotatePoint(angle_axis,camera_row,cameraPoint);
 }
 
 /**
@@ -236,24 +321,37 @@ bool* DeepArcManager::point3d_mask(double error_bound = 5.0){
     int* loss_count = new int[num_point3d_]();
     bool* is_threshold = new bool[num_point3d_];
     double residuals[2], loss;
-    SnavelyReprojectionError* loss_fn;
+    DynamicReprojectionError* loss_fn;
 
     // iteration variable
     int i,point3d_id;
-
+    bool share_extrinsic;
+    double** params;
     // calculate loss
     for(i = 0; i < num_point2d(); i++){
         point3d_id = point3d_index_[i];
-        loss_fn = new SnavelyReprojectionError(
+        share_extrinsic = this->is_share_extrinsic() && this->is_edge(i);
+        loss_fn = new DynamicReprojectionError(
             point2d_x(i),
             point2d_y(i),
             num_focal(i),
-            num_distrotion(i)
+            num_distrotion(i),
+            share_extrinsic
         );
+        if(share_extrinsic){
+            params = new double*[4];
+            params[0] = this->instrinsic(i);
+            params[1] = this->extrinsic_row(i);
+            params[2] = this->extrinsic_col(i);
+            params[3] = this->point3d(i);
+        }else{
+            params = new double*[3];
+            params[0] = this->instrinsic(i);
+            params[1] = this->extrinsic(i);
+            params[2] = this->point3d(i);
+        }
         loss_fn->operator()(
-            instrinsic(i),
-            extrinsic(i),
-            point3d(i),
+            params,
             residuals
         );
         //do sum square
@@ -279,10 +377,10 @@ void DeepArcManager::point3d_remove(bool* point3d_mask){
      extrinsic_index, point3d_index;
  
     std::set<int> remain_point3d, remain_point2d, 
-        remain_intrinsic, remain_extrinsic;
+        remain_intrinsic, remain_extrinsic, buff_extrinsic;
 
 
-    int i,j,block;
+    int i,j,block,r,c;
     //mark the remain point3d
     for(i = 0; i < num_point3d_; i++){
         if(point3d_mask[i]){
@@ -309,6 +407,17 @@ void DeepArcManager::point3d_remove(bool* point3d_mask){
         }
         num_focal.push_back(num_focal_index_[id]);
         num_distrotion.push_back(num_distrotion_index_[id]);
+    }
+    if(is_share_extrinsic()){
+        for(auto id: remain_extrinsic){
+            r = id / num_extrinsic_col_;
+            c = id % num_extrinsic_col_;
+            buff_extrinsic.insert(r);
+            if(c != 0){
+                buff_extrinsic.insert(c + num_extrinsic_row_ -1);
+            }
+        }
+        remain_extrinsic = buff_extrinsic;
     }
     for(auto id: remain_extrinsic){
         for(j = 0; j < extrinsic_block_size(); j++){
