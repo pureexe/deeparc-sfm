@@ -7,8 +7,7 @@
 #include "ceres/ceres.h"
 #include "ceres/rotation.h"
 #include "deeparc_manager.h"
-#include "dynamic_reprojection_error.h"
-
+#include "snavely_reprojection_error.h"
 
 bool DeepArcManager::read(const char* filename){
     FILE* fptr = fopen(filename, "r");
@@ -321,7 +320,7 @@ bool* DeepArcManager::point3d_mask(double error_bound = 5.0){
     int* loss_count = new int[num_point3d_]();
     bool* is_threshold = new bool[num_point3d_];
     double residuals[2], loss;
-    DynamicReprojectionError* loss_fn;
+    SnavelyReprojectionError* loss_fn;
 
     // iteration variable
     int i,point3d_id;
@@ -330,30 +329,46 @@ bool* DeepArcManager::point3d_mask(double error_bound = 5.0){
     // calculate loss
     for(i = 0; i < num_point2d(); i++){
         point3d_id = point3d_index_[i];
-        share_extrinsic = this->is_share_extrinsic() && this->is_edge(i);
-        loss_fn = new DynamicReprojectionError(
+        loss_fn = new SnavelyReprojectionError(
             point2d_x(i),
             point2d_y(i),
             num_focal(i),
             num_distrotion(i),
             share_extrinsic
         );
-        if(share_extrinsic){
-            params = new double*[4];
-            params[0] = this->instrinsic(i);
-            params[1] = this->extrinsic_row(i);
-            params[2] = this->extrinsic_col(i);
-            params[3] = this->point3d(i);
+        if(is_share_extrinsic()){
+            if(extrinsic_row_id(i) == 0){
+                loss_fn->operator()(
+                    instrinsic(i),
+                    extrinsic_row(i),
+                    point3d(i),
+                    residuals
+                ); 
+            }else if(extrinsic_col_id(i) == 0){
+                loss_fn->operator()(
+                    instrinsic(i),
+                    extrinsic_col(i),
+                    point3d(i),
+                    residuals
+                ); 
+            }else{
+                loss_fn->operator()(
+                    instrinsic(i),
+                    extrinsic_row(i),
+                    extrinsic_col(i),
+                    point3d(i),
+                    residuals
+                );
+            }
         }else{
-            params = new double*[3];
-            params[0] = this->instrinsic(i);
-            params[1] = this->extrinsic(i);
-            params[2] = this->point3d(i);
+            loss_fn->operator()(
+                instrinsic(i),
+                extrinsic(i),
+                point3d(i),
+                residuals
+            );
         }
-        loss_fn->operator()(
-            params,
-            residuals
-        );
+        
         //do sum square
         sum_square_loss[point3d_id]
             += residuals[0] * residuals[0] 
@@ -378,6 +393,8 @@ void DeepArcManager::point3d_remove(bool* point3d_mask){
  
     std::set<int> remain_point3d, remain_point2d, 
         remain_intrinsic, remain_extrinsic, buff_extrinsic;
+
+    int temp_num_row = 0, temp_num_col = 0;
 
 
     int i,j,block,r,c;
@@ -417,6 +434,15 @@ void DeepArcManager::point3d_remove(bool* point3d_mask){
                 buff_extrinsic.insert(c + num_extrinsic_row_ -1);
             }
         }
+        for(auto id: buff_extrinsic){
+            if(id < num_extrinsic_row_){
+                temp_num_row++;
+            }else{
+                temp_num_col++;
+            }
+        }
+        num_extrinsic_row_ = temp_num_row;
+        num_extrinsic_col_ = temp_num_col;
         remain_extrinsic = buff_extrinsic;
     }
     for(auto id: remain_extrinsic){
