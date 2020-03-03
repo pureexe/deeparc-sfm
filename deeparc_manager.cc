@@ -9,6 +9,9 @@
 #include "deeparc_manager.h"
 #include "snavely_reprojection_error.h"
 
+// cam_in_ring
+// cam_in_arc
+
 bool DeepArcManager::read(const char* filename){
     FILE* fptr = fopen(filename, "r");
     if (fptr == NULL) {
@@ -205,6 +208,7 @@ void DeepArcManager::ply(const char* filename){
      // Export extrinsic data (i.e. camera centers) as green points.
     double center[3],output[3];
     int r,c;
+    /*
     if(is_share_extrinsic()){
         //write cam_i,j which compose from extrinsic on base and arc
         for (int i = 0; i < camera_point; ++i)  {
@@ -220,9 +224,19 @@ void DeepArcManager::ply(const char* filename){
             << center[2] << " 255 0 255" << '\n';
         }
     }
+    
    
    // show base and arc extrinsic
     for (int i = 0; i < num_extrinsic_; ++i)  {
+        const double* r = extrinsic_ + (i * extrinsic_block_size());
+        extrinsicToCameraPoint(r, center);
+        of << center[0] << ' ' << center[1] << ' '
+            << center[2] << " 0 255 0" << '\n';
+    }
+    */
+
+    // show extrinsic on the arc
+    for (int i = 0; i < 2; ++i)  {
         const double* r = extrinsic_ + (i * extrinsic_block_size());
         extrinsicToCameraPoint(r, center);
         of << center[0] << ' ' << center[1] << ' '

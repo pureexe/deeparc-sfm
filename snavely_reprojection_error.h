@@ -110,6 +110,7 @@ struct SnavelyReprojectionError {
                   T* residuals) const {                  
     // rotate point by using angle-axis rotation.
     T p[3],p2[3];
+    //ring / up
     rotateTranslatePoint(extrinsic_row,point,p2);
     rotateTranslatePoint(extrinsic_col,p2,p);
     return projectPoint(instrinsic,p,residuals);
