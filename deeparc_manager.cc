@@ -238,78 +238,81 @@ void DeepArcManager::ply(const char* filename){
         }
         of << '\n';
     }
-     //temporary comment this section, still can't fix bug after multiply back with original value
-    /*
-    // try to display camera on base and arch with multiply original extrinsic of cam_0,0 back
-    // get extrinsic of cam_0,0
-    double *ref_extrinsic = extrinsic_ + (num_extrinsic_ -1 * extrinsic_block_size());
-    double* ref_rot = new double[9];
-    // convert cam_0,0 rotation (which is index 3,4,5) to rotation matrix from
-    ceres::AngleAxisToRotationMatrix(ref_extrinsic+3,ref_rot);
-    // convert from double* to Matrix3d for multiply
-    Eigen::Map<Eigen::Matrix3d> ref_angle(ref_rot);
-    for (int i = 0; i < num_extrinsic_ -1; ++i)  {
-        // get cam_i,0 and cam_0,j 
-        const double* r = extrinsic_ + (i * extrinsic_block_size());
-        //clone extrinsic into new variable
-        double* new_extrinsic = new double[extrinsic_block_size()];
-        double current_angle[3],current_rot[9];
-        for(int j = 0; j < extrinsic_block_size(); j++){
-            new_extrinsic[j] = r[j];
-        }
-        current_angle[0] = new_extrinsic[3];
-        current_angle[1] = new_extrinsic[4];
-        current_angle[2] = new_extrinsic[5];
-        ceres::AngleAxisToRotationMatrix(current_angle,current_rot);
-        Eigen::Map<Eigen::Matrix3d> c_angle(current_rot);
-        //multiply back with original rotation of cam_0,0
-        Eigen::Matrix3d result =  ref_angle * c_angle;
-        ceres::RotationMatrixToAngleAxis(result.data(),current_angle);
-        new_extrinsic[3] = current_angle[0];
-        new_extrinsic[4] = current_angle[1];
-        new_extrinsic[5] = current_angle[2];
-        extrinsicToCameraPoint(new_extrinsic, center);
-        of << center[0] << ' ' << center[1] << ' '
-            << center[2] << " 0 255 0" << '\n';
-    }
-    */
     of.close();
 }
 
 // draw camera position
 void DeepArcManager::extrinsicToCameraPoint(
     const double* extrinsic, double* cameraPoint) const {
+        // C = -(R^T)T
         double angle_axis[3];
         int i;
+        // calculate R^T from R
         for(i = 0; i< 3; i++){
             angle_axis[i] = -extrinsic[i+3];
         }
+        // calculate (R^T)T from R^T and T 
         ceres::AngleAxisRotatePoint(angle_axis,extrinsic,cameraPoint);
+        // calculate -(R^T)T by multiply -1 
         for(i = 0;i < 3; i++){
             cameraPoint[i] = -cameraPoint[i];
         }
 }
 
 
+/*
 //draw camera position that combine from 2 extrinsic
 void DeepArcManager::composeExtrinsicToCameraPoint(
     const double* extrinsic_row, 
     const double* extrinsic_col,
     double* cameraPoint
 ) const {
-    double angle_axis[3], camera_row[3];
+    // C =  -(R_1^T)(R_2^T)T_2 -(R_1^T)T_1 
     int i;
-    for(i = 0; i< 3; i++){
-        angle_axis[i] = -extrinsic_row[i+3];
+    double camera_row[3], camera_col[3], R1_T[3], front_term[3];
+    // calculate -(R_1^T)T_1
+    extrinsicToCameraPoint(extrinsic_col, camera_col);
+    // calculate -(R_2^T)T_2
+    extrinsicToCameraPoint(extrinsic_row, camera_row);
+    // calculate R_1^T from R_1
+    for(i = 0; i < 3; i++){
+        R1_T[i] = -extrinsic_col[i+3];
     }
-    ceres::AngleAxisRotatePoint(angle_axis,extrinsic_row,camera_row);
-    for(i = 0;i < 3; i++){
-        camera_row[i] = -camera_row[i];
-        angle_axis[i] = -extrinsic_col[i+3];
+    // calculate -(R_1^T)(R_2^T)T_2 = (R_1^T) * -(R_2^T)T_2
+    ceres::AngleAxisRotatePoint(R1_T,camera_row, front_term);
+    // C =  [-(R_1^T)(R_2^T)T_2] + [-(R_1^T)T_1]
+    for(i = 0; i < 3; i++){
+        cameraPoint[i] = front_term[i] + camera_col[i];
     }
-    ceres::AngleAxisRotatePoint(angle_axis,camera_row,cameraPoint);
+    ceres::AngleAxisToRotationMatrix()
+}
+*/
+void DeepArcManager::extrinsicToEigen(const double* extrinsic,Eigen::Matrix3d &rotationMatrix,Eigen::Vector3d &translation) const {
+    double rotation_matrix[9],transation_vec[3];
+    for(int i = 0; i < 3; i++){
+        transation_vec[i] = extrinsic[i];
+    }
+    ceres::AngleAxisToRotationMatrix(extrinsic+3,rotation_matrix);
+    rotationMatrix = Eigen::Map<Eigen::Matrix3d>(rotation_matrix);
+    translation = Eigen::Map<Eigen::Vector3d>(transation_vec);
 }
 
+void DeepArcManager::composeExtrinsicToCameraPoint(
+    const double* extrinsic_row, 
+    const double* extrinsic_col,
+    double* cameraPoint
+) const {
+    Eigen::Matrix3d R_1, R_2;
+    Eigen::Vector3d t_1, t_2, camera_position;
+    extrinsicToEigen(extrinsic_row,R_1,t_1);
+    extrinsicToEigen(extrinsic_col,R_2,t_2);
+    camera_position = -R_1.transpose() * t_1 - R_1.transpose() * R_2.transpose() * t_2;
+    double* c = camera_position.data();
+    for(int i = 0; i<3; i++){
+        cameraPoint[i] = c[i];
+    }
+
+}
 /**
  * return array of boolean 
  * - true if lower than error_bound
@@ -340,14 +343,14 @@ bool* DeepArcManager::point3d_mask(double error_bound = 5.0){
             if(extrinsic_row_id(i) == 0){
                 loss_fn->operator()(
                     instrinsic(i),
-                    extrinsic_row(i),
+                    extrinsic_col(i),
                     point3d(i),
                     residuals
                 ); 
             }else if(extrinsic_col_id(i) == 0){
                 loss_fn->operator()(
                     instrinsic(i),
-                    extrinsic_col(i),
+                    extrinsic_row(i),
                     point3d(i),
                     residuals
                 ); 
@@ -373,7 +376,6 @@ bool* DeepArcManager::point3d_mask(double error_bound = 5.0){
         sum_square_loss[point3d_id]
             += residuals[0] * residuals[0] 
                 + residuals[1] * residuals[1];
-
         loss_count[point3d_id]++;
     }
     int remain_point = 0;
@@ -381,6 +383,9 @@ bool* DeepArcManager::point3d_mask(double error_bound = 5.0){
         loss = sqrt(sum_square_loss[i] / loss_count[i]);
         is_threshold[i] = loss < error_bound;
         remain_point += loss < error_bound ? 1 : 0;
+        if(point3d(i)[2] < 0){
+            is_threshold[i] = false;
+        }
     }
     return is_threshold;
 }

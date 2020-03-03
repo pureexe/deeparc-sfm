@@ -74,10 +74,21 @@ struct SnavelyReprojectionError {
       rotvec[2] = extrinsic[5];
       // rotate point by using angle-axis rotation.
       ceres::AngleAxisRotatePoint(rotvec, point, p);
+  }
+
+  template <typename T>
+  void translatePoint(const T* extrinsic,const  T* point, T* p) const {
       // extrinsic[0,1,2] are the translation.
-      p[0] += extrinsic[0];
-      p[1] += extrinsic[1];
-      p[2] += extrinsic[2];
+      p[0] = point[0] + extrinsic[0];
+      p[1] = point[1] + extrinsic[1];
+      p[2] = point[2] + extrinsic[2];
+  }
+
+  template <typename T>
+  void rotateTranslatePoint(const T* extrinsic,const  T* point, T* p) const {
+    T p2[3];
+    rotatePoint(extrinsic,point,p2);
+    translatePoint(extrinsic,p2,p);
   }
 
   template <typename T>
@@ -87,7 +98,7 @@ struct SnavelyReprojectionError {
                   T* residuals) const {                  
     // rotate point by using angle-axis rotation.
     T p[3];
-    rotatePoint(extrinsic,point,p);
+    rotateTranslatePoint(extrinsic,point,p);
     return projectPoint(instrinsic,p,residuals);
   }
 
@@ -99,8 +110,8 @@ struct SnavelyReprojectionError {
                   T* residuals) const {                  
     // rotate point by using angle-axis rotation.
     T p[3],p2[3];
-    rotatePoint(extrinsic_row,point,p2);
-    rotatePoint(extrinsic_col,p2,p);
+    rotateTranslatePoint(extrinsic_row,point,p2);
+    rotateTranslatePoint(extrinsic_col,p2,p);
     return projectPoint(instrinsic,p,residuals);
   }
 

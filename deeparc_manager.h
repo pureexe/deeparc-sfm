@@ -76,5 +76,6 @@ class DeepArcManager{
         const double* extrinsic_col,
         double* cameraPoint
     ) const;
+    void extrinsicToEigen(const double* extrinsic,Eigen::Matrix3d &rotationMatrix,Eigen::Vector3d &translation) const;
 };
 #endif
