@@ -16,75 +16,31 @@ int main(int argc, char** argv) {
     deeparcManager->ply(PLY_INIT);
     ceres::Problem problem;
     //Only support share extrinsic right now
-    std::vector<Point2d*>* point2ds = deeparcManager->point2d();
+    std::vector<ParameterBlock*>* params = deeparcManager->parameters();
+    int i,j,block_size;
+    block_size = params->size();
     std::vector<double*> parameter_block;
-    int point2d_size = point2ds->size();
+    ParameterBlock* block;
     Point2d* point;
-    bool share_extrinsic = false;
-    double *point3d, *principle, *focal, *distrotion, *arc_rotation, 
-        *arc_translation, *ring_rotation, *ring_translation;
-    for(int i = 0; i < point2d_size; i++){
-        point = point2ds->at(i);
-        parameter_block.clear();
-        point3d = point->point3d()->position();
-        principle = point->intrinsic()->center();
-        focal = point->intrinsic()->focal();
-        distrotion = point->intrinsic()->distrotion();
-        arc_rotation = point->arc()->rotation();
-        arc_translation = point->arc()->translation();
-        ring_rotation = point->ring()->rotation();
-        ring_translation = point->ring()->translation();
-        parameter_block.push_back(point3d);
-        parameter_block.push_back(principle);
-        parameter_block.push_back(focal);
-        parameter_block.push_back(distrotion);
-        if((point->pos_arc() == 0 && point->pos_ring() == 0) ){
-            parameter_block.push_back(arc_rotation);
-            parameter_block.push_back(arc_translation);
-            share_extrinsic = false;
-        }else if(point->pos_ring() == 0){
-            parameter_block.push_back(arc_rotation);
-            parameter_block.push_back(arc_translation);
-            share_extrinsic = false;
-        }else if(point->pos_arc() == 0){
-            parameter_block.push_back(ring_rotation);
-            parameter_block.push_back(ring_translation);
-            share_extrinsic = false;
-        }else{
-            parameter_block.push_back(arc_rotation);
-            parameter_block.push_back(arc_translation);
-            parameter_block.push_back(ring_rotation);
-            parameter_block.push_back(ring_translation);
-            share_extrinsic = true;
-        }   
+    Intrinsic* intrinsic;
+    for(i = 0; i < block_size; i++){
+        block = params->at(i);
+        parameter_block = block->get();
+        point = block->point2d();
+        intrinsic = block->intrinsic();
         SnavelyCostFunction* cost_fn = SnavelyReprojectionError::Create(
             point->x(),
             point->y(),
-            point->intrinsic()->focal_size(),
-            point->intrinsic()->distrotion_size(),
-            share_extrinsic
-        );
-        problem.AddResidualBlock(cost_fn, new ceres::CauchyLoss(0.5), parameter_block);
-        problem.SetParameterBlockConstant(principle);
-        problem.SetParameterBlockConstant(focal);
-        problem.SetParameterBlockConstant(distrotion);
-        if((point->pos_arc() == 0 && point->pos_ring() == 0) || point->pos_ring() == 0){
-            problem.SetParameterBlockConstant(arc_rotation);
-            problem.SetParameterBlockConstant(arc_translation);
-        }else if(point->pos_arc() == 0){
-            problem.SetParameterBlockConstant(ring_rotation);
-            problem.SetParameterBlockConstant(ring_translation);
-        }else{
-            problem.SetParameterBlockConstant(arc_rotation);
-            problem.SetParameterBlockConstant(arc_translation);
-            problem.SetParameterBlockConstant(ring_rotation);
-            problem.SetParameterBlockConstant(ring_translation);
+            intrinsic->focal_size(),
+            intrinsic->distrotion_size(),
+            block->compose_extrinsic()
+        );       
+        parameter_block =  block->get();
+        problem.AddResidualBlock(cost_fn, new ceres::CauchyLoss(0.5),parameter_block);
+        if(block->pos_arc() == 0 && block->pos_ring() == 0){
+           problem.SetParameterBlockConstant(parameter_block[5]);
+           problem.SetParameterBlockConstant(parameter_block[6]);    
         }
-        /*
-        if((point->pos_arc() == 0 && point->pos_ring() == 0) ){
-            problem.SetParameterBlockConstant(arc_rotation);
-            problem.SetParameterBlockConstant(arc_translation);
-        }*/
     }
 
     ceres::Solver::Options options;

@@ -6,9 +6,10 @@ bool DeepArcManager::isShareExtrinsic(){
     return this->share_extrinsic_;
 }
 
-std::vector<Point2d*>* DeepArcManager::point2d(){
-    return &(this->point2d_);
+std::vector<ParameterBlock*>* DeepArcManager::parameters(){
+    return &this->params_;
 }
+
 
 bool DeepArcManager::read(std::string filename){
     std::ifstream file(filename);
@@ -17,56 +18,65 @@ bool DeepArcManager::read(std::string filename){
         throw "Cannot read input file";
     }
     double version;
-    int point2d_size, intrinsic_size, extrinsic_arc_size,
+    int paramsblock_size, intrinsic_size, extrinsic_arc_size,
          extrinsic_ring_size, point3d_size, extrinsic_size;
     // read version number
     file >> version;
     // read size header;
-    file >> point2d_size >> intrinsic_size >> extrinsic_arc_size 
+    file >> paramsblock_size >> intrinsic_size >> extrinsic_arc_size 
         >> extrinsic_ring_size >> point3d_size;
     this->share_extrinsic_ = extrinsic_ring_size != 0;
     this->arc_size_ = extrinsic_arc_size;
     this->ring_size_ = extrinsic_ring_size;
     extrinsic_size = extrinsic_ring_size != 0 ? 
         extrinsic_arc_size + extrinsic_ring_size - 1 : extrinsic_ring_size;
-    std::vector<Point2d*> point2ds = this->readPoint2d(&file, point2d_size);
+    std::vector<ParameterBlock*> params = this->readParameterBlock(&file, paramsblock_size);
     std::vector<Intrinsic*> intrinsics = this->readIntrinsic(&file, intrinsic_size);
     std::vector<Extrinsic*> extrinsics = this->readExtrinsic(&file, extrinsic_size);
     std::vector<Point3d*> point3ds = this->readPoint3d(&file, point3d_size);
-    this->point3d_ = point3ds;
-    this->point2d_ = point2ds;
+    file.close();
     if(this->share_extrinsic_){
         this->hemisphere_ = this->buildCameraShare(
             extrinsic_arc_size,
             extrinsic_ring_size,
-            &point2ds,
             &intrinsics,
-            &extrinsics,
-            &point3ds
+            &extrinsics
         );
     }else{
         this->camera_ = this->buildCamera(
-            &point2ds,
+            &params,
             &intrinsics,
-            &extrinsics,
-            &point3ds
+            &extrinsics
         );
     }
-    file.close();
+    this->buildParameterBlock(
+        &params,
+        &intrinsics,
+        &extrinsics,
+        &point3ds,
+        this->share_extrinsic_ ? this->arc_size_ : 0
+    );
+    this->point3d_ = point3ds;
+    this->params_ = params;
     return true;
 }
 
-std::vector<Point2d*> DeepArcManager::readPoint2d(std::ifstream* file,int size){
+std::vector<ParameterBlock*> DeepArcManager::readParameterBlock(std::ifstream* file,int size){
     int position_arc, position_ring, point3d_id, i;
     double x,y;
-    Point2d* point;
-    std::vector<Point2d*> point2ds;
+    std::vector<ParameterBlock*> params;
     for(i = 0; i < size; i++){
         *file >> position_arc >> position_ring >> point3d_id >> x >> y;
-        point = new Point2d(position_arc,position_ring,point3d_id,x,y);
-        point2ds.push_back(point);
+        params.push_back(
+            new ParameterBlock(
+                position_arc,
+                position_ring,
+                point3d_id,
+                new Point2d(x,y)
+            )
+        );
     }
-    return point2ds;
+    return params;
 }
 
 std::vector<Intrinsic*> DeepArcManager::readIntrinsic(std::ifstream *file, int size){
@@ -144,15 +154,39 @@ int DeepArcManager::extrinsicRingIdOnHemisphere(int ring_position,int arc_size){
     return ring_position + arc_size - 1;
 }
 
+void DeepArcManager::buildParameterBlock(
+        std::vector<ParameterBlock*> *params,
+        std::vector<Intrinsic*> *intrinsics,
+        std::vector<Extrinsic*> *extrinsics,
+        std::vector<Point3d*> *point3ds,
+        int arc_size){
+    ParameterBlock *p;
+    int i, block_size;
+    block_size = params->size();
+    for(i = 0; i < block_size; i++){
+        p = params->at(i);  
+        p->intrinsic(intrinsics->at(p->intrinsic_id()));
+        p->point3d(point3ds->at(p->point3d_id()));
+        if(arc_size != 0){
+            p->arc(extrinsics->at(p->pos_arc()));
+            p->ring(extrinsics->at(
+                this->extrinsicRingIdOnHemisphere(p->pos_ring(),arc_size)
+            ));
+            p->share_extrinsic(true);
+        }else{
+            p->extrinsic(extrinsics->at(p->extrinsic_id()));
+            p->share_extrinsic(false);
+        }
+    }
+}
+
 std::map<int, std::map<int,Camera*> > DeepArcManager::buildCameraShare(
         int arc_size,
         int ring_size,
-        std::vector<Point2d*> *point2ds,
         std::vector<Intrinsic*> *intrinsics,
-        std::vector<Extrinsic*> *extrinsics,
-        std::vector<Point3d*> *point3ds){
+        std::vector<Extrinsic*> *extrinsics){
     std::map<int, std::map<int,Camera*> > hemisphere;
-    int arc_position, ring_position, i;
+    int arc_position, ring_position;
     for (arc_position = 0; arc_position < arc_size; arc_position++){
         for(ring_position = 0; ring_position < ring_size; ring_position++){
             hemisphere[arc_position][ring_position] = new Camera(
@@ -164,35 +198,20 @@ std::map<int, std::map<int,Camera*> > DeepArcManager::buildCameraShare(
             );
         }
     }
-    Point2d *p;
-    int point2d_size = point2ds->size();
-    for(i = 0; i < point2d_size; i++){
-        p = point2ds->at(i);  
-        p->arc(extrinsics->at(p->pos_arc()));
-        p->ring(extrinsics->at(
-            this->extrinsicRingIdOnHemisphere(p->pos_ring(),arc_size)
-        ));
-        p->intrinsic(intrinsics->at(p->intrinsic_id()));
-        p->point3d(point3ds->at(p->point3d_id()));
-    }
     return hemisphere;
 }
 
 std::vector<Camera*> DeepArcManager::buildCamera(
-        std::vector<Point2d*> *point2ds,
+        std::vector<ParameterBlock*> *params,
         std::vector<Intrinsic*> *intrinsics,
-        std::vector<Extrinsic*> *extrinsics,
-        std::vector<Point3d*> *point3ds){
+        std::vector<Extrinsic*> *extrinsics){
     std::map<int,int> extrinsic_intrinsic; 
     std::vector<Camera*> cameras;
-    int i; 
-    int point2d_size = point2ds->size();
-    Point2d *p;
-    for(i = 0; i < point2d_size; i++){
-        p = point2ds->at(i);  
-        p->extrinsic(extrinsics->at(p->extrinsic_id()));
-        p->intrinsic(intrinsics->at(p->intrinsic_id()));
-        p->point3d(point3ds->at(p->point3d_id()));
+    int i, block_size; 
+    block_size = params->size();
+    ParameterBlock *p;
+    for(i = 0; i < block_size; i++){
+        p = params->at(i);  
         extrinsic_intrinsic[p->extrinsic_id()] = p->intrinsic_id();
     }
     for (std::pair<int, int> ids : extrinsic_intrinsic) {
