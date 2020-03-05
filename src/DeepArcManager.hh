@@ -21,10 +21,6 @@ class DeepArcManager{
     void point3d_remove(bool* point3d_mask);
     */
     int cam_id;
-    /*
-    Camera* cam(int id);
-    Camera* cam(int arc_pos, int ring_pos);
-    */
     private:
     int arc_size_, ring_size_;
     bool share_extrinsic_;
