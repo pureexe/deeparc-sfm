@@ -2,35 +2,31 @@
 #define _VLL_DEEPARC_CAMERA_EXTRINSIC_H_
 #include "ceres/ceres.h"
 #include "ceres/rotation.h"
-
+#include <vector>
 class Extrinsic{
     public:
-    double* rotation(){return this->rotation_;}
-    double* translation(){return this->translation_;}
+    double* rotation(){return this->rotation_.data();}
+    double* translation(){return this->translation_.data();}
     Eigen::Matrix3d rotationMatrix(){
-        double* rotMat = new double[9];
-        ceres::AngleAxisToRotationMatrix(this->rotation_, rotMat);
+        double rotMat[9];
+        ceres::AngleAxisToRotationMatrix(this->rotation_.data(), rotMat);
         Eigen::Matrix3d rotationEigenMat = Eigen::Map<Eigen::Matrix3d>(rotMat);
         return rotationEigenMat;
     };
     Eigen::Vector3d translationVector(){
-        Eigen::Vector3d tvec = Eigen::Map<Eigen::Vector3d>(this->translation_);
+        Eigen::Vector3d tvec = Eigen::Map<Eigen::Vector3d>(this->translation_.data());
         return tvec;
     };
-    Extrinsic* rotation(int size, double* rotation){
-        this->rotation_size_ = size;
+    void rotation(std::vector<double> rotation){
         this->rotation_ = rotation;
-        return this;
     }
     Extrinsic* translation(double x,double y, double z){
-        this->translation_ = new double[3];
-        this->translation_[0] = x;
-        this->translation_[1] = y;
-        this->translation_[2] = z;
+        this->translation_.push_back(x);
+        this->translation_.push_back(y);
+        this->translation_.push_back(z);
         return this;
     }
     private:
-    double *rotation_, *translation_;
-    int rotation_size_;
+    std::vector<double> rotation_, translation_;
 };
 #endif

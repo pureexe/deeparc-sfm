@@ -11,35 +11,35 @@
 int main(int argc, char** argv) {
     (void)argc;
     google::InitGoogleLogging(argv[0]);
-    DeepArcManager* deeparcManager = new DeepArcManager();
-    deeparcManager->read(DEEPARC_INPUT);
-    deeparcManager->ply(PLY_INIT);
+    DeepArcManager deeparcManager;
+    deeparcManager.read(DEEPARC_INPUT);
+    deeparcManager.ply(PLY_INIT);
     ceres::Problem problem;
     //Only support share extrinsic right now
-    std::vector<ParameterBlock*>* params = deeparcManager->parameters();
-    int i,j,block_size;
-    block_size = params->size();
+    std::vector<ParameterBlock> params = deeparcManager.parameters();
+    int i,block_size;
+    block_size = params.size();
     std::vector<double*> parameter_block;
-    ParameterBlock* block;
-    Point2d* point;
-    Intrinsic* intrinsic;
+    ParameterBlock block;
+    Point2d point;
+    Intrinsic intrinsic;
     for(i = 0; i < block_size; i++){
-        block = params->at(i);
-        parameter_block = block->get();
-        point = block->point2d();
-        intrinsic = block->intrinsic();
+        block = params[i];
+        parameter_block = block.get();  
+        point = block.point2d();
+        intrinsic = block.intrinsic();
         SnavelyCostFunction* cost_fn = SnavelyReprojectionError::Create(
-            point->x(),
-            point->y(),
-            intrinsic->focal_size(),
-            intrinsic->distrotion_size(),
-            block->compose_extrinsic()
+            point.x(),
+            point.y(),
+            intrinsic.focal_size(),
+            intrinsic.distrotion_size(),
+            block.compose_extrinsic()
         );       
-        parameter_block =  block->get();
+        parameter_block = block.get();
         problem.AddResidualBlock(cost_fn, new ceres::CauchyLoss(0.5),parameter_block);
-        if(block->pos_arc() == 0 && block->pos_ring() == 0){
-           problem.SetParameterBlockConstant(parameter_block[5]);
-           problem.SetParameterBlockConstant(parameter_block[6]);    
+        if(block.pos_arc() == 0 && block.pos_ring() == 0){
+           problem.SetParameterBlockConstant(parameter_block[3]);
+           problem.SetParameterBlockConstant(parameter_block[4]);    
         }
     }
 
@@ -52,5 +52,5 @@ int main(int argc, char** argv) {
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
     std::cout << summary.FullReport() << "\n";
-    deeparcManager->ply(PLY_NOSIY);
+    deeparcManager.ply(PLY_NOSIY);
 }

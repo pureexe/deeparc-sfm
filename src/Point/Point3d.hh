@@ -7,17 +7,21 @@ class Point3d{
             this->r_ = r;
             this->g_ = g;
             this->b_ = b;
-            this->position_ = new double[3];
-            this->position_[0] = x;
-            this->position_[1] = y;
-            this->position_[2] = z;
+            this->position_.push_back(x);
+            this->position_.push_back(y);
+            this->position_.push_back(z);
         }
+        Point3d(){
+            this->r_ = 0;
+            this->g_ = 0;
+            this->b_ = 0;
+        };
         int r(){return r_;}
         int g(){return g_;}
         int b(){return b_;}
-        double* position(){return position_;}
+        double* position(){return this->position_.data();}
     private:
+    std::vector<double> position_;
     int r_,g_,b_;
-    double* position_;
 };
 #endif

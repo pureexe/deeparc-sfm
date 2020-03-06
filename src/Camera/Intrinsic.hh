@@ -3,36 +3,23 @@
 
 class Intrinsic{
     public:
-    double* focal() {return this->focal_;}
-    double* center() {return  this->center_;}
-    double* distrotion() {return  this->distrotion_;}
-    int focal_size() {return  this->focal_size_;}
-    int distrotion_size() {return this->distrotion_size_;}
-    Intrinsic(){
-        this->distrotion_size_ = 0;
-        this->focal_size_ = 0;
-        this->distrotion_ = NULL;
-        this->center_ = NULL;
-        this->focal_ = NULL;
-    }
-    Intrinsic* focal(int size,double* f){
-        this->focal_size_ = size;
-        this->focal_ = f;
-        return this;
-    }
-    Intrinsic* distrotion(int size,double* distortions){
-        this->distrotion_size_ = size;
-        this->distrotion_ = distortions;
-        return this;
-    }
-    Intrinsic* center(int cx, int cy){
-        this->center_ = new double[2];
-        this->center_[0] = cx;
-        this->center_[1] = cy;
-        return this;
-    }
+        double* focal() {return this->focal_.data();}
+        double* center() {return  this->center_;}
+        double* distrotion() {return  this->distortion_.data();}
+        int focal_size() {return  this->focal_.size();}
+        int distrotion_size() {return this->distortion_.size();}
+        void focal(std::vector<double> f){this->focal_ = f;}
+        void distrotion(std::vector<double> d){this->distortion_ = d;}
+        void center(int cx, int cy){
+            this->center_[0] = cx;
+            this->center_[1] = cy;
+        }
+        Intrinsic(){
+            this->center_[0] = 0;
+            this->center_[1] = 0;
+        }
     private:
-    double *focal_, *center_, *distrotion_;
-    int focal_size_, distrotion_size_;
+        std::vector<double> focal_, distortion_;
+        double center_[2];
 };
 #endif
