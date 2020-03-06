@@ -8,8 +8,8 @@ class Point2d{
         }
         int x(){return x_;}
         int y(){return y_;}
-        Point2d(){};
+
     private:
-        int x_, y_;
+    int x_, y_;
 };
 #endif

@@ -16,9 +16,7 @@ typedef ceres::DynamicAutoDiffCostFunction<
 struct SnavelyReprojectionError {
   double observed_x, observed_y;
   bool is_share_extrinsic;
-  int num_distrotion, num_focal, num_rotation_arc, num_rotation_ring,
-    arc_rotation, arc_translation, ring_rotation, ring_translation,
-    extrinsic_rotation,extrinsic_translation;
+  int num_distrotion, num_focal, num_rotation_arc, num_rotation_ring;
 
   SnavelyReprojectionError(
       double x,
@@ -36,21 +34,6 @@ struct SnavelyReprojectionError {
       this->is_share_extrinsic = share_extrinsic;
       this->num_rotation_arc = num_rotation_arc;
       this->num_rotation_ring = num_rotation_ring;
-      if(n_distrotion == 0){
-        this->arc_rotation = 3;
-        this->arc_translation = 4;
-        this->extrinsic_rotation = 3;
-        this->extrinsic_translation = 4;
-        this->ring_rotation = 5;
-        this->ring_translation = 6;
-      }else{
-        this->arc_rotation = 4;
-        this->arc_translation = 5;
-        this->extrinsic_rotation = 4;
-        this->extrinsic_translation = 5;
-        this->ring_rotation = 6;
-        this->ring_translation = 7;
-      }
   }
   template <typename T>
   bool projectPoint(
@@ -61,7 +44,7 @@ struct SnavelyReprojectionError {
     // the camera model that Noah Snavely's Bundler assumes
     const T* principle = params[1];
     const T* focal = params[2];
-    const T* distrotion = params[3]; 
+    const T* distrotion = params[3];
 
     T xp = p[0] / p[2];
     T yp = p[1] / p[2];
@@ -108,25 +91,25 @@ struct SnavelyReprojectionError {
   }
 
   template <typename T>
-  bool operator()(T const* const* params, T* residuals) const {       
+  bool operator()(T const* const* params, T* residuals) const {                  
     T p[3],p2[3];
     if(this->is_share_extrinsic){
       rotatePoint(
-        params[ring_rotation], 
-        params[ring_translation],
+        params[6], //ring_rotation
+        params[7], //ring_translation
         params[0], //point3d
         p2
       );
       rotatePoint(
-        params[arc_rotation], 
-        params[arc_translation],
+        params[4], //arc_rotation
+        params[5], //arc_translation
         p2,
         p
       );
     }else{
       rotatePoint(
-        params[extrinsic_rotation], 
-        params[extrinsic_translation], 
+        params[4], //rotation
+        params[5], //translation
         params[0], //point3d
         p
       );
@@ -146,9 +129,7 @@ struct SnavelyReprojectionError {
     cost_fn->AddParameterBlock(3); //point3d
     cost_fn->AddParameterBlock(2); //principle point
     cost_fn->AddParameterBlock(focal); //focal length
-    if(distrotion != 0){
-      cost_fn->AddParameterBlock(distrotion); //distrotion
-    }
+    cost_fn->AddParameterBlock(distrotion); //distrotion
     cost_fn->AddParameterBlock(3); //rotation
     cost_fn->AddParameterBlock(3); //translation
     if(share_extrinsic){
