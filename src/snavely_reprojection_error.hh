@@ -108,7 +108,7 @@ struct SnavelyReprojectionError {
   }
 
   template <typename T>
-  bool operator()(T const* const* params, T* residuals) const {                  
+  bool operator()(T const* const* params, T* residuals) const {       
     T p[3],p2[3];
     if(this->is_share_extrinsic){
       rotatePoint(

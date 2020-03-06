@@ -51,12 +51,11 @@ class ParameterBlock{
             this->share_extrinsic_ = false;
         };
         // get parameter block
-        std::vector<double*> get(){
-            std::vector<double*> params({
-                this->point3d_.position(), 
-                this->intrinsic_.center(),
-                this->intrinsic_.focal(),
-            });
+        void get(std::vector<double*> &params){
+            params.clear();
+            params.push_back(this->point3d_.position());
+            params.push_back(this->intrinsic_.center());
+            params.push_back(this->intrinsic_.focal());
             if(this->intrinsic_.distrotion_size() > 0){
                 params.push_back(this->intrinsic_.distrotion());
             }
@@ -78,7 +77,6 @@ class ParameterBlock{
                 params.push_back(this->extrinsic_.rotation());
                 params.push_back(this->extrinsic_.translation());
             }
-            return params;
         };
     private:
         bool share_extrinsic_;

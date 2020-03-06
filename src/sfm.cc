@@ -12,20 +12,17 @@ int main(int argc, char** argv) {
     (void)argc;
     google::InitGoogleLogging(argv[0]);
     DeepArcManager deeparcManager;
+    std::cout << "start reading\n";
     deeparcManager.read(DEEPARC_INPUT);
-    deeparcManager.ply(PLY_INIT);
+    //deeparcManager.ply(PLY_INIT);
     ceres::Problem problem;
     //Only support share extrinsic right now
-    std::vector<ParameterBlock> params = deeparcManager.parameters();
-    int i,block_size;
-    block_size = params.size();
-    std::vector<double*> parameter_block;
+    std::cout << "start build the block\n";
     ParameterBlock block;
     Point2d point;
     Intrinsic intrinsic;
-    for(i = 0; i < block_size; i++){
-        block = params[i];
-        parameter_block = block.get();  
+    int u = 0;
+    for(ParameterBlock &block: deeparcManager.params_) {
         point = block.point2d();
         intrinsic = block.intrinsic();
         SnavelyCostFunction* cost_fn = SnavelyReprojectionError::Create(
@@ -34,8 +31,9 @@ int main(int argc, char** argv) {
             intrinsic.focal_size(),
             intrinsic.distrotion_size(),
             block.compose_extrinsic()
-        );       
-        parameter_block = block.get();
+        );  
+        std::vector<double*> parameter_block;     
+        block.get(parameter_block);
         problem.AddResidualBlock(cost_fn, new ceres::CauchyLoss(0.5),parameter_block);
         if(block.pos_arc() == 0 && block.pos_ring() == 0){
            problem.SetParameterBlockConstant(parameter_block[3]);
@@ -43,10 +41,12 @@ int main(int argc, char** argv) {
         }
     }
 
+
+    std::cout << "start ceres\n";
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
     options.minimizer_progress_to_stdout = true;
-    options.max_num_iterations = 100 * 1; // 1000 iteration 
+    options.max_num_iterations = 20 * 1; // 1000 iteration 
     options.num_threads = 16; //use 20 thread
     options.max_solver_time_in_seconds = 3600 * 1 / 6; // 1 hour
     ceres::Solver::Summary summary;
