@@ -6,10 +6,10 @@ project(sfm)
 find_package(Ceres REQUIRED)
 include_directories(${CERES_INCLUDE_DIRS})
 
-# deeparc manager
-add_library(deeparc_manager deeparc_manager.cc)
+# library
+add_library(DeepArcManager src/DeepArcManager.cc)
 
 # Make SFM executable
-add_executable(sfm sfm.cc)
-target_link_libraries(sfm  deeparc_manager)
+add_executable(sfm src/sfm.cc)
+target_link_libraries(sfm  DeepArcManager)
 target_link_libraries(sfm ${CERES_LIBRARIES})
