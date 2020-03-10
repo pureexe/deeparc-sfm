@@ -30,7 +30,7 @@ bool DeepArcManager::read(std::string filename){
     this->arc_size_ = extrinsic_arc_size;
     this->ring_size_ = extrinsic_ring_size;
     extrinsic_size = extrinsic_ring_size != 0 ? 
-        extrinsic_arc_size + extrinsic_ring_size - 1 : extrinsic_ring_size;
+        extrinsic_arc_size + extrinsic_ring_size - 1 : extrinsic_arc_size;
     this->readParameterBlock(&file, paramsblock_size);
     std::vector<Intrinsic*> intrinsics = this->readIntrinsic(&file, intrinsic_size);
     std::vector<Extrinsic*> extrinsics = this->readExtrinsic(&file, extrinsic_size);
@@ -50,7 +50,6 @@ bool DeepArcManager::read(std::string filename){
             &extrinsics
         );
     }
-    std::cout << "BUILD BLOCK\n";
     this->buildParameterBlock(
         &intrinsics,
         &extrinsics,
@@ -211,26 +210,17 @@ std::vector<Camera*> DeepArcManager::buildCamera(
     int i, block_size; 
     block_size = params->size();
     ParameterBlock *p;
-    std::cout << "AT I: \n";
-    std::cout << "Block size: " << block_size << "\n";
     for(i = 0; i < block_size; i++){
         p = params->at(i);  
-        extrinsic_intrinsic.insert(std::pair<char,int>(p->extrinsic_id(),p->intrinsic_id()));
+        extrinsic_intrinsic.insert(std::pair<int,int>(p->extrinsic_id(),p->intrinsic_id()));
     }
-    std::cout << "AT 2: \n";
-    std::cout << "SIZE:" << extrinsic_intrinsic.size() << "\n";
-    Camera *c;
     for (auto const&  ids : extrinsic_intrinsic) {
-        std::cout << "new camera";
-        c = new Camera(
+        cameras.push_back(new Camera(
             intrinsics->at(ids.second),
             extrinsics->at(ids.first)
-        );
-        std::cout << "push camera";
-        cameras.push_back(c);
+        ));
     }
     return cameras;
-
 }
 
 std::vector<double> DeepArcManager::camera2position(Extrinsic* extrinsic){
@@ -297,6 +287,14 @@ void DeepArcManager::ply(std::string filename){
                 }
                 of << ((is_green)?"0 255 0\n":"255 0 255\n");
             }
+        }
+    }else{
+        for(i = 0; i < (int) this->camera_.size(); i++){
+            cam_position = this->camera2position(this->camera_[i]->extrinsic());
+            for(j = 0; j < 3; j++){
+                of << cam_position[j] << " ";
+            }
+            of << "0 255 0\n";
         }
     }
     //Write Point3d

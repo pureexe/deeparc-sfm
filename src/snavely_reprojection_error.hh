@@ -85,9 +85,9 @@ struct SnavelyReprojectionError {
     T* p) const {
       // rotate point by using angle-axis rotation.
       ceres::AngleAxisRotatePoint(rotation, point, p);
-      p[0] = point[0] + translation[0];
-      p[1] = point[1] + translation[1];
-      p[2] = point[2] + translation[2];
+      p[0] = p[0] + translation[0];
+      p[1] = p[1] + translation[1];
+      p[2] = p[2] + translation[2];
   }
 
   template <typename T>
