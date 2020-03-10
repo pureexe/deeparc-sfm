@@ -1,7 +1,12 @@
 #include <fstream>
 #include <string>
-#include "DeepArcManager.hh"
+#include <algorithm>
 #include <ceres/rotation.h>
+
+#include "DeepArcManager.hh"
+#include "ParameterBlock.hh"
+#include "Point/Point3d.hh"
+#include "snavely_reprojection_error.hh"
 
 bool DeepArcManager::isShareExtrinsic(){
     return this->share_extrinsic_;
@@ -247,7 +252,7 @@ std::vector<double> DeepArcManager::camera2position(Extrinsic *arc,Extrinsic *ri
     return position;
 }
 
-void DeepArcManager::ply(std::string filename){
+void DeepArcManager::writePly(std::string filename){
     std::ofstream of(filename);
     int i,j, arc, ring;
     int point_size = this->point3d_.size();
@@ -309,4 +314,49 @@ void DeepArcManager::ply(std::string filename){
             << point3d->b() << '\n';
     }
     of.close();
+}
+
+
+void DeepArcManager::filter_point3d(double error_boundary){
+    for(ParameterBlock* &block: this->params_){
+        Point2d* point = block->point2d();
+        Intrinsic* intrinsic = block->intrinsic();
+        SnavelyReprojectionError projector(
+            point->x(),
+            point->y(),
+            intrinsic->focal_size(),
+            intrinsic->distrotion_size(),
+            block->share_extrinsic()
+        );
+        double r[2];
+        projector(block->get().data(),r);
+        double mse = (r[0]*r[0] + r[1]*r[1])/2.0;
+        if(mse < error_boundary){
+            block->require_remove(true);
+        }
+    }
+    //remove paramter block;
+    this->params_.erase(std::remove_if(
+        this->params_.begin(), 
+        this->params_.end(), 
+        [](ParameterBlock* &block) { 
+            bool is_remove = block->require_remove();
+            if(is_remove){
+                delete block;
+            }
+            return is_remove; 
+        }
+    ),this->params_.end());
+    //remove point3d
+    this->point3d_.erase(std::remove_if(
+        this->point3d_.begin(), 
+        this->point3d_.end(), 
+        [](Point3d* &point) { 
+            bool is_remove = point->empty();
+            if(is_remove){
+                delete point;
+            }
+            return is_remove; 
+        }
+    ),this->point3d_.end());
 }

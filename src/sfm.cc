@@ -5,15 +5,26 @@
 #include "snavely_reprojection_error.hh"
 
 #define DEEPARC_INPUT "../data/teabottle_green.deeparc"
+#define DEEPARC_OUTPUT "../data/teabottle_green_after.deeparc"
 #define PLY_INIT "../assets/teabottle_green_init.ply"
 #define PLY_NOSIY "../assets/teabottle_green_noisy.ply"
+#define PLY_CLEAR "../assets/teabottle_green_clear.ply"
 
 int main(int argc, char** argv) {
     (void)argc;
     google::InitGoogleLogging(argv[0]);
+    //google::SetLogDestination(google::INFO,"../log/");
     DeepArcManager deeparcManager;
     deeparcManager.read(DEEPARC_INPUT);
-    deeparcManager.ply(PLY_INIT);
+    std::cout << "=== before remove === \n";
+    std::cout << "block: " << deeparcManager.parameters()->size() << "\n";
+    std::cout << "point3d: " << deeparcManager.point3d_.size() << "\n";
+    deeparcManager.filter_point3d(5.0);
+    std::cout << "=== after remove === \n";
+    std::cout << "block: " << deeparcManager.parameters()->size() << "\n";
+    std::cout << "point3d: " << deeparcManager.point3d_.size() << "\n";
+    //deeparcManager.writePly(PLY_CLEAR);
+    //exit(0);
     ceres::Problem problem;
     //Only support share extrinsic right now
     std::vector<ParameterBlock*>* params = deeparcManager.parameters();
@@ -52,5 +63,5 @@ int main(int argc, char** argv) {
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
     std::cout << summary.FullReport() << "\n";
-    deeparcManager.ply(PLY_NOSIY);
+    deeparcManager.writePly(PLY_NOSIY);
 }

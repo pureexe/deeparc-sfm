@@ -20,6 +20,7 @@ class ParameterBlock{
         int pos_arc(){return pos_arc_;}
         int pos_ring(){return pos_ring_;}
         bool share_extrinsic(){return share_extrinsic_;}
+        bool require_remove(){return this->require_remove_;}
         bool compose_extrinsic(){
             return this->share_extrinsic_ 
                 && this->pos_arc_ != 0
@@ -31,8 +32,15 @@ class ParameterBlock{
         void extrinsic(Extrinsic *extrin){this->extrinsic_ = extrin;}
         void point2d(Point2d *point2d){this->point2d_ = point2d;}
         void intrinsic(Intrinsic* intrinsic){this->intrinsic_ = intrinsic;}
-        void point3d(Point3d* point3d){this->point3d_ = point3d;}
+        void point3d(Point3d* point3d){
+            if(this->point3d_ != NULL){
+                this->point3d_->unlink(this);
+            }
+            this->point3d_ = point3d;
+            this->point3d_->link(this);
+        }
         void share_extrinsic(bool is_share){this->share_extrinsic_ = is_share;}
+        void require_remove(bool remove){ this->require_remove_ = remove;}
         //constructor
         ParameterBlock(
             int position_arc,
@@ -45,6 +53,14 @@ class ParameterBlock{
             this->pos_ring_ = position_ring;
             this->point3d_id_ = point3d_id;
             this->point2d_ = point2d;
+            this->point3d_ = NULL;
+            this->require_remove_ = false;
+        };
+        ~ParameterBlock(){        
+            if(this->point3d_ != NULL){
+                this->point3d_->unlink(this);
+            }
+            delete this->point2d_; 
         };
         // get parameter block
         std::vector<double*> get(){
@@ -75,7 +91,7 @@ class ParameterBlock{
             return params;
         };
     private:
-        bool share_extrinsic_;
+        bool share_extrinsic_,require_remove_;
         Intrinsic *intrinsic_;
         Extrinsic *extrinsic_, *extrinsic_arc_, *extrinsic_ring_;
         Point3d *point3d_;
