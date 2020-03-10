@@ -16,6 +16,9 @@ std::vector<ParameterBlock*>* DeepArcManager::parameters(){
     return &this->params_;
 }
 
+std::vector<Point3d*>* DeepArcManager::point3ds(){
+    return &this->point3d_;
+}
 
 bool DeepArcManager::read(std::string filename){
     std::ifstream file(filename);

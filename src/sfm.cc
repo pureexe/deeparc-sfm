@@ -18,11 +18,11 @@ int main(int argc, char** argv) {
     deeparcManager.read(DEEPARC_INPUT);
     std::cout << "=== before remove === \n";
     std::cout << "block: " << deeparcManager.parameters()->size() << "\n";
-    std::cout << "point3d: " << deeparcManager.point3d_.size() << "\n";
+    std::cout << "point3d: " << deeparcManager.point3ds()->size() << "\n";
     deeparcManager.filter_point3d(5.0);
     std::cout << "=== after remove === \n";
     std::cout << "block: " << deeparcManager.parameters()->size() << "\n";
-    std::cout << "point3d: " << deeparcManager.point3d_.size() << "\n";
+    std::cout << "point3d: " << deeparcManager.point3ds()->size() << "\n";
     //deeparcManager.writePly(PLY_CLEAR);
     //exit(0);
     ceres::Problem problem;
