@@ -8,6 +8,7 @@ class Extrinsic{
     public:
     double* rotation(){return this->rotation_;}
     double* translation(){return this->translation_;}
+    int id(){return this->id_;}
     Eigen::Matrix3d rotationMatrix(){
         double rotMat[9];
         ceres::AngleAxisToRotationMatrix(this->rotation_, rotMat);
@@ -26,7 +27,9 @@ class Extrinsic{
         this->translation_[1] = y;
         this->translation_[2] = z;
     }
+    void id(int id){this->id_ = id;}
     private:
     double rotation_[3], translation_[3];
+    int id_;
 };
 #endif

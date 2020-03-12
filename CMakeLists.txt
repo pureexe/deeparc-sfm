@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 2.8)
 add_compile_options("-W" "-Wall" "-O3" "-pedantic")
+#add_compile_options("-g")
 
 project(sfm)
 

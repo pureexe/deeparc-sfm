@@ -4,27 +4,27 @@
 #include "DeepArcManager.hh"
 #include "snavely_reprojection_error.hh"
 
+/*
 #define DEEPARC_INPUT "../data/teabottle_green.deeparc"
-#define DEEPARC_OUTPUT "../data/teabottle_green_after.deeparc"
-#define PLY_INIT "../assets/teabottle_green_init.ply"
+#define DEEPARC_OUTPUT "../data/teabottle_green_output.deeparc"
+#define PLY_INIT "../assets/teabottle_green_init_.ply"
 #define PLY_NOSIY "../assets/teabottle_green_noisy.ply"
 #define PLY_CLEAR "../assets/teabottle_green_clear.ply"
+*/
+#define DEEPARC_INPUT "../assets/old/temple.deeparc"
+#define DEEPARC_OUTPUT "../assets/temple_.deeparc"
+#define PLY_INIT "../assets/temple_init.ply"
+#define PLY_NOSIY "../assets/temple_noisy.ply"
+#define PLY_CLEAR "../assets/temple_clear.ply"
+
 
 int main(int argc, char** argv) {
     (void)argc;
     google::InitGoogleLogging(argv[0]);
-    //google::SetLogDestination(google::INFO,"../log/");
+    // google::SetLogDestination(google::INFO,"../log/");
     DeepArcManager deeparcManager;
     deeparcManager.read(DEEPARC_INPUT);
-    std::cout << "=== before remove === \n";
-    std::cout << "block: " << deeparcManager.parameters()->size() << "\n";
-    std::cout << "point3d: " << deeparcManager.point3ds()->size() << "\n";
-    deeparcManager.filter_point3d(5.0);
-    std::cout << "=== after remove === \n";
-    std::cout << "block: " << deeparcManager.parameters()->size() << "\n";
-    std::cout << "point3d: " << deeparcManager.point3ds()->size() << "\n";
-    //deeparcManager.writePly(PLY_CLEAR);
-    //exit(0);
+    deeparcManager.writePly(PLY_INIT);
     ceres::Problem problem;
     //Only support share extrinsic right now
     std::vector<ParameterBlock*>* params = deeparcManager.parameters();
@@ -64,4 +64,13 @@ int main(int argc, char** argv) {
     ceres::Solve(options, &problem, &summary);
     std::cout << summary.FullReport() << "\n";
     deeparcManager.writePly(PLY_NOSIY);
+    std::cout << "=== before remove === \n";
+    std::cout << "block: " << deeparcManager.parameters()->size() << "\n";
+    std::cout << "point3d: " << deeparcManager.point3ds()->size() << "\n";
+    deeparcManager.filter_point3d(5.0);
+    std::cout << "=== after remove === \n";
+    std::cout << "block: " << deeparcManager.parameters()->size() << "\n";
+    std::cout << "point3d: " << deeparcManager.point3ds()->size() << "\n";
+    deeparcManager.writePly(PLY_CLEAR);
+    deeparcManager.write(DEEPARC_OUTPUT);
 }

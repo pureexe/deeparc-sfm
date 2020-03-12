@@ -1,12 +1,15 @@
 #include <fstream>
 #include <string>
 #include <algorithm>
+#include <iomanip>
+#include <cstdio>
 #include <ceres/rotation.h>
 
 #include "DeepArcManager.hh"
 #include "ParameterBlock.hh"
 #include "Point/Point3d.hh"
 #include "snavely_reprojection_error.hh"
+
 
 bool DeepArcManager::isShareExtrinsic(){
     return this->share_extrinsic_;
@@ -64,6 +67,8 @@ bool DeepArcManager::read(std::string filename){
         &point3ds,
         this->share_extrinsic_ ? this->arc_size_ : 0
     );
+    this->intrinsics_ = intrinsics;
+    this->extrinsics_ = extrinsics;
     this->point3d_ = point3ds;
     return true;
 }
@@ -93,6 +98,7 @@ std::vector<Intrinsic*> DeepArcManager::readIntrinsic(std::ifstream *file, int s
     std::vector<Intrinsic*> intrinsics;
     for(i = 0; i < size; i++){
         intrinsic = new Intrinsic();
+        intrinsic->id(i);
         //read printiple point
         *file >> cx >> cy;
         intrinsic->center(cx,cy);
@@ -122,6 +128,7 @@ std::vector<Extrinsic*> DeepArcManager::readExtrinsic(std::ifstream *file, int s
     std::vector<Extrinsic*> extrinsics;
     for(i = 0; i < size; i++){
         extrinsic = new Extrinsic();
+        extrinsic->id(i);
         //read translation
         *file >> x >> y >> z;
         extrinsic->translation(x,y,z);
@@ -196,13 +203,14 @@ std::map<int, std::map<int,Camera*> > DeepArcManager::buildHemisphere(
     std::map<int, std::map<int,Camera*> > hemisphere;
     int arc_position, ring_position;
     for (arc_position = 0; arc_position < arc_size; arc_position++){
+        extrinsics->at(arc_position)->id(arc_position);
         for(ring_position = 0; ring_position < ring_size; ring_position++){
+            int ringIdOnHemi = this->extrinsicRingIdOnHemisphere(ring_position,arc_size);
+            extrinsics->at(ringIdOnHemi)->id(ring_position);
             hemisphere[arc_position][ring_position] = new Camera(
                 intrinsics->at(arc_position),
                 extrinsics->at(arc_position),
-                extrinsics->at(
-                    this->extrinsicRingIdOnHemisphere(ring_position,arc_size)
-                )
+                extrinsics->at(ringIdOnHemi)
             );
         }
     }
@@ -329,15 +337,20 @@ void DeepArcManager::filter_point3d(double error_boundary){
             point->y(),
             intrinsic->focal_size(),
             intrinsic->distrotion_size(),
-            block->share_extrinsic()
+            block->compose_extrinsic()
         );
         double r[2];
+        //std::vector<double*> parameter_block = block->get();
+        //double** block_data = parameter_block.data();
+        //std::cout<< block_data[0][0] << " " << block_data[0][1] << " " << block_data[0][2] << "\n";
         projector(block->get().data(),r);
         double mse = (r[0]*r[0] + r[1]*r[1])/2.0;
         if(mse < error_boundary){
             block->require_remove(true);
         }
+        
     }
+    
     //remove paramter block;
     this->params_.erase(std::remove_if(
         this->params_.begin(), 
@@ -362,4 +375,79 @@ void DeepArcManager::filter_point3d(double error_boundary){
             return is_remove; 
         }
     ),this->point3d_.end());
+}
+
+void DeepArcManager::write(std::string filename){
+    std::ofstream of(filename);
+    of << std::fixed << std::showpoint << std::setprecision(6) ;
+    //reindex point3d
+    for(int i = 0; i < (int) this->point3d_.size(); i++){
+        this->point3d_[i]->id(i);
+    }
+    of << "0.010000\n"
+        << this->params_.size() << " "
+        << this->intrinsics_.size() << " ";
+    if(this->share_extrinsic_){
+        of << this->arc_size_ << " " << this->ring_size_ << " ";
+    }else{
+        of << this->camera_.size() << " 0 ";
+    }
+    of << this->point3d_.size() << "\n";
+    //print parameter block
+    for(ParameterBlock* &block: this->params_){
+        of << block->intrinsic()->id() << " ";
+        if(this->share_extrinsic_){
+            of << block->ring()->id() << " ";
+        }else{
+            of << block->extrinsic()->id() << " ";
+        }
+        of << block->point3d()->id() << " "
+            << block->point2d()->x() << " "
+            << block->point2d()->y() << "\n";
+        
+    }
+    //print intrinsic
+    //923.500000 1223.500000 2 4949.234294 4949.234294 0
+    for(Intrinsic* &intrinsic: this->intrinsics_){
+        double *center, *focal, *distrotion;
+        center = intrinsic->center();
+        of << center[0] << " "
+            << center[1] << " "
+            << intrinsic->focal_size();
+        focal = intrinsic->focal();
+        for(int j = 0; j < (int) intrinsic->focal_size(); j++){
+            of  << " " << focal[j];
+        }
+        distrotion = intrinsic->distrotion();
+        of << " " << intrinsic->distrotion_size();
+        for(int j = 0; j < (int) intrinsic->distrotion_size(); j++){
+            of  << " " << distrotion[j];
+        }
+        of << "\n";
+    }
+    //print extrinsic
+    //-0.000454 0.371719 -0.037265 3 0.059579 -0.003424 0.003330
+    for(Extrinsic* &extrinsic: this->extrinsics_){
+        double *translation,*rotation;
+        translation = extrinsic->translation();
+        rotation = extrinsic->rotation();
+        of << translation[0] << " "
+            << translation[1] << " "
+            << translation[2] << " "
+            << "3 " 
+            << rotation[0] << " "
+            << rotation[1] << " "
+            << rotation[2] << "\n" ;
+    }
+    //print point3d
+    for(Point3d* &point: this->point3d_){
+        double *pos = point->position();
+        of << pos[0] << " "
+            << pos[1] << " "
+            << pos[2] << " "
+            << point->r() << " "
+            << point->g() << " "
+            << point->b() << "\n";
+    }
+    of.close();
 }
