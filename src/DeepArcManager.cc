@@ -328,7 +328,7 @@ void DeepArcManager::writePly(std::string filename){
 }
 
 
-void DeepArcManager::filter_point3d(double error_boundary){
+void DeepArcManager::filterPoint3d(double error_boundary,double* hemisphere_center,double hemisphere_radius){
     for(ParameterBlock* &block: this->params_){
         Point2d* point = block->point2d();
         Intrinsic* intrinsic = block->intrinsic();
@@ -363,6 +363,7 @@ void DeepArcManager::filter_point3d(double error_boundary){
             return is_remove; 
         }
     ),this->params_.end());
+
     //remove point3d
     this->point3d_.erase(std::remove_if(
         this->point3d_.begin(), 
@@ -375,6 +376,51 @@ void DeepArcManager::filter_point3d(double error_boundary){
             return is_remove; 
         }
     ),this->point3d_.end());
+    
+    for(Point3d* &point:this->point3d_){
+        double* position = point->position();
+        double distance_square = 0;
+        for(int i = 0;i < 3; i++){
+            double distance = position[i] - hemisphere_center[i];
+            distance_square += distance*distance;
+        }
+        if(distance_square > (hemisphere_radius / 2)){
+            point->require_remove(true);
+        }
+    }
+
+    //remove point3d
+    this->point3d_.erase(std::remove_if(
+        this->point3d_.begin(), 
+        this->point3d_.end(), 
+        [](Point3d* &point) { 
+            bool is_remove = point->require_remove();
+            if(is_remove){
+                std::set<ParameterBlock*> total_link = point->total_link();
+                for(ParameterBlock* block: total_link){
+                    block->require_remove(true); 
+                    block->point3d(NULL);                   
+                }
+                delete point;
+            }
+            return is_remove; 
+        }
+    ),this->point3d_.end());
+
+    //remove paramter block;
+    this->params_.erase(std::remove_if(
+        this->params_.begin(), 
+        this->params_.end(), 
+        [](ParameterBlock* &block) { 
+            bool is_remove = block->require_remove();
+            if(is_remove){
+                delete block;
+            }
+            return is_remove; 
+        }
+    ),this->params_.end());
+
+
 }
 
 void DeepArcManager::write(std::string filename){
@@ -450,4 +496,23 @@ void DeepArcManager::write(std::string filename){
             << point->b() << "\n";
     }
     of.close();
+}
+
+std::vector<std::vector<double> >  DeepArcManager::getCameraCenter(){
+    std::vector<std::vector<double> > cameraCenter;
+    for(int arc = 0; arc < this->arc_size_; arc++){
+        for(int ring = 0; ring < this->ring_size_; ring++){
+            std::vector<double> cam_position;
+            Camera* cam = this->hemisphere_[arc][ring];               
+            if((arc == 0 && ring == 0) || ring == 0){
+                cam_position = this->camera2position(cam->arc());
+            }else if (arc == 0){
+                cam_position = this->camera2position(cam->ring());
+            }else{
+                cam_position = this->camera2position(cam->arc(),cam->ring());
+            }    
+            cameraCenter.push_back(cam_position);
+        }
+    }
+    return cameraCenter;
 }

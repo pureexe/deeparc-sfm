@@ -16,8 +16,9 @@ class DeepArcManager{
         void writePly(std::string filename);
         std::vector<ParameterBlock*>* parameters();
         std::vector<Point3d*>* point3ds();
-        void filter_point3d(double error_boundary); 
+        void filterPoint3d(double error_boundary,double* hemishpere_center, double hemisphere_radius); 
         void write(std::string filename);
+        std::vector<std::vector<double> > getCameraCenter();
     private:
         int cam_id;
         int arc_size_, ring_size_, intrinsic_size_;

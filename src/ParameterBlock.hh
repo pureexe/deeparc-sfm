@@ -37,7 +37,9 @@ class ParameterBlock{
                 this->point3d_->unlink(this);
             }
             this->point3d_ = point3d;
-            this->point3d_->link(this);
+            if(this->point3d_ != NULL){
+                this->point3d_->link(this);
+            }
         }
         void share_extrinsic(bool is_share){this->share_extrinsic_ = is_share;}
         void require_remove(bool remove){ this->require_remove_ = remove;}
